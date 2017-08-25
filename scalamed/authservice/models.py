@@ -1,3 +1,7 @@
-from django.db import models
+from authservice.managers import UserManager
+from django.contrib.auth.models import AbstractUser
 
-# Create your models here.
+
+# https://docs.djangoproject.com/en/1.11/topics/auth/
+class User(AbstractUser):
+    objects = UserManager()
