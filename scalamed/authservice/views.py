@@ -1,8 +1,11 @@
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.parsers import JSONParser
 from authservice.serializers import UserSerializer
 from authservice.models import User
+from django.http import (
+    HttpResponseBadRequest,
+    JsonResponse)
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.exceptions import ParseError
+from rest_framework.parsers import JSONParser
 
 
 @csrf_exempt
@@ -14,14 +17,6 @@ def user_list(request):
         serializer = UserSerializer(users, many=True)
         return JsonResponse(serializer.data, safe=False)
 
-    elif request.method == 'POST':
-        data = JSONParser().parse(request)
-        serializer = UserSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
-
     return JsonResponse({}, status=404)
 
 
@@ -30,6 +25,16 @@ def register(request):
     """Register a new user into the system."""
 
     if request.method == 'PUT':
-        return 0
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return HttpResponseBadRequest(str(e))
+
+        serializer = UserSerializer(data=data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data, status=201)
+        return HttpResponseBadRequest(str(serializer.errors))
 
     return JsonResponse({}, status=404)
