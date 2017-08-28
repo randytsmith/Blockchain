@@ -1,11 +1,14 @@
 from authservice.serializers import UserSerializer
 from authservice.models import User
+from django.contrib.auth import authenticate
 from django.http import (
     HttpResponseBadRequest,
     JsonResponse)
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
+
+import jwt
 
 
 @csrf_exempt
@@ -54,4 +57,28 @@ def login(request):
     We return them a fresh token_level_0, token_level_1, and the UUID of the
     user.
     """
+
+    if request.method == 'POST':
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return HttpResponseBadRequest(str(e))
+
+        email = data['email']
+        password = data['password']
+
+        user = authenticate(username=email, password=password)
+
+        if user == None:
+            return HttpResponseBadRequest("incorrect buddy")
+
+        l0 = jwt.encode({'level': 0}, 'secret', algorithm='HS256')
+        l1 = jwt.encode({'level': 1}, 'secret', algorithm='HS256')
+
+        return JsonResponse({
+            'token_level_0': l0.decode('ascii'),
+            'token_level_1': l1.decode('ascii'),
+            'uuid': user.uuid,
+        }, status=200)
+
     return JsonResponse({}, status=404)

@@ -88,3 +88,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def clean(self):
         super().clean()
         self.email = self.objects.normalize_email(self.email)
+
+    def check_password(self, password):
+        if password == self.password:
+            return True
