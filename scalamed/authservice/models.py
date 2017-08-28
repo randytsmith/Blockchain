@@ -2,6 +2,12 @@ from authservice.managers import UserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from uuid import uuid4
+
+
+def generate_uuid():
+    # TODO check that it is unique
+    return uuid4()
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -56,6 +62,16 @@ class User(AbstractBaseUser, PermissionsMixin):
             'to perform certain actions.'
         ),
         max_length=3,
+    )
+
+    uuid = models.CharField(
+        blank=False,
+        unique=True,
+        error_messages={
+            'unique': ("A user with that uuid already exists."),
+        },
+        max_length=36,
+        default=generate_uuid
     )
 
     date_joined = models.DateTimeField('date joined', default=timezone.now)

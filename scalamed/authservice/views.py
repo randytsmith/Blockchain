@@ -30,6 +30,13 @@ def register(request):
         except ParseError as e:
             return HttpResponseBadRequest(str(e))
 
+        x = set(data.keys()) - {'email', 'password'}
+        if len(x):
+            # TODO better words
+            return HttpResponseBadRequest('you had extra fields')
+
+        # data['uuid'] = User.generate_uuid()
+
         serializer = UserSerializer(data=data)
 
         if serializer.is_valid():
@@ -37,4 +44,14 @@ def register(request):
             return JsonResponse(serializer.data, status=201)
         return HttpResponseBadRequest(str(serializer.errors))
 
+    return JsonResponse({}, status=404)
+
+
+@csrf_exempt
+def login(request):
+    """
+    Login a new user, expecting their e-mail and password as the credentials.
+    We return them a fresh token_level_0, token_level_1, and the UUID of the
+    user.
+    """
     return JsonResponse({}, status=404)

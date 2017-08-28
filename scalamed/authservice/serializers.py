@@ -5,7 +5,7 @@ from rest_framework import serializers
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('email', 'password', 'role')
+        fields = ('email', 'password', 'uuid', 'role')
 
     def is_valid(self, raise_exception=False):
         valid = super().is_valid(raise_exception)
@@ -15,7 +15,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         if hasattr(self, 'initial_data'):
             extra = set(self.initial_data.keys()) - set(self.fields.keys())
-            print(extra)
             if extra:
                 for k in extra:
                     self._errors[k] = self._errors.get(k, [])
