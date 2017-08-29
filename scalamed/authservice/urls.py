@@ -5,4 +5,6 @@ urlpatterns = [
     url(r'^register$', views.register),
     url(r'^login$', views.login),
     url(r'^users$', views.user_list),
+    url(r'^check$', views.check),
+    url(r'^check/(?P<actiontype>(prescription|fulfil))$', views.check),
 ]

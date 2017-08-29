@@ -4,6 +4,9 @@ from django.db import models
 from django.utils import timezone
 from uuid import uuid4
 
+import jwt
+from datetime import datetime, timedelta
+
 
 def generate_uuid():
     # TODO check that it is unique
@@ -87,8 +90,26 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def clean(self):
         super().clean()
-        self.email = self.objects.normalize_email(self.email)
+        self.email = type(self).objects.normalize_email(self.email)
 
-    def check_password(self, password):
-        if password == self.password:
-            return True
+    def generate_token_level_0(self):
+        token = jwt.encode({'level': 0}, self.uuid + 'secret', algorithm='HS256')
+        return token
+
+    def generate_token_level_1(self):
+        # TODO: refresh with a new token
+        token = jwt.encode({
+            'level': 1,
+            'exp': datetime.utcnow() + timedelta(minutes=30)
+        }, self.uuid + 'secret', algorithm='HS256')
+        return token
+
+    def verify_token_level_0(self, token):
+        result = jwt.decode(token, self.uuid + 'secret', algorithm='HS256')
+        if result['level'] != 0:
+            raise jwt.InvalidTokenError
+
+    def verify_token_level_1(self, token):
+        result = jwt.decode(token, self.uuid + 'secret', algorithm='HS256')
+        if result['level'] != 1:
+            raise jwt.InvalidTokenError

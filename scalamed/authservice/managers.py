@@ -4,13 +4,14 @@ from django.contrib.auth.models import UserManager as DjangoUserManager
 
 class UserManager(DjangoUserManager):
 
-    def _create_user(self, email, password, **extra_fields):
+    def _create_user(self, username, email, password, **extra_fields):
         """
         Create and save a user with the given email, and password.
         This function is a copy of create_user() in Django-1.11. The major
         difference is validation occuring before a user is created; and the fact
         that the username is the email address.
         """
+        assert(username == None)
         if not email:
             raise ValueError('The given email must be set')
         if not password:

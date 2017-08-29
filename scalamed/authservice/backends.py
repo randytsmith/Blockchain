@@ -12,7 +12,4 @@ class EmailBackend(ModelBackend):
         else:
             if getattr(user, 'is_active', False) and user.check_password(password):
                 return user
-            else:
-                print(user.check_password(password))
-                print(password)
         return None

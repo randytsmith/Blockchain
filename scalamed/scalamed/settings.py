@@ -71,6 +71,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'scalamed.wsgi.application'
 
 
+# Password Hashing
+# https://docs.djangoproject.com/en/1.11/topics/auth/passwords/#using-bcrypt-with-django
+
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+]
+
+
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 

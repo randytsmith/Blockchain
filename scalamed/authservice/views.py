@@ -1,9 +1,8 @@
 from authservice.serializers import UserSerializer
 from authservice.models import User
+from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
-from django.http import (
-    HttpResponseBadRequest,
-    JsonResponse)
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
@@ -20,7 +19,7 @@ def user_list(request):
         serializer = UserSerializer(users, many=True)
         return JsonResponse(serializer.data, safe=False)
 
-    return JsonResponse({}, status=404)
+    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
@@ -31,23 +30,24 @@ def register(request):
         try:
             data = JSONParser().parse(request)
         except ParseError as e:
-            return HttpResponseBadRequest(str(e))
+            return ResponseMessage.INVALID_MESSAGE(str(e))
 
         x = set(data.keys()) - {'email', 'password'}
         if len(x):
             # TODO better words
-            return HttpResponseBadRequest('you had extra fields')
-
-        # data['uuid'] = User.generate_uuid()
+            return ResponseMessage.INVALID_MESSAGE("Extra fields present")
 
         serializer = UserSerializer(data=data)
 
         if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return HttpResponseBadRequest(str(serializer.errors))
+            user = User.objects.create_user(
+                username=None,
+                email=serializer.data['email'],
+                password=serializer.data['password'])
+            return JsonResponse({'email': user.email}, status=201)
+        return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
 
-    return JsonResponse({}, status=404)
+    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
@@ -62,7 +62,7 @@ def login(request):
         try:
             data = JSONParser().parse(request)
         except ParseError as e:
-            return HttpResponseBadRequest(str(e))
+            return ResponseMessage.INVALID_MESSAGE(str(e))
 
         email = data['email']
         password = data['password']
@@ -70,10 +70,10 @@ def login(request):
         user = authenticate(username=email, password=password)
 
         if user == None:
-            return HttpResponseBadRequest("incorrect buddy")
+            return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = jwt.encode({'level': 0}, 'secret', algorithm='HS256')
-        l1 = jwt.encode({'level': 1}, 'secret', algorithm='HS256')
+        l0 = user.generate_token_level_0()
+        l1 = user.generate_token_level_1()
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -81,4 +81,61 @@ def login(request):
             'uuid': user.uuid,
         }, status=200)
 
-    return JsonResponse({}, status=404)
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def check(request, actiontype=None):
+    """
+    Checks if the given token is valid, expecting their uuid, token_level_1, token_level_0.
+    Optional: Checks if the given user is permitted to perform the action.
+    We return them a fresh token_level_1 on success.
+    """
+
+    if request.method == 'POST':
+
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        l0 = data['token_level_0']
+        l1 = data['token_level_1']
+        uuid = data['uuid']
+
+        # Verify the user id
+        try:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Verify the tokens are valid.
+        try:
+            user.verify_token_level_0(l0)
+            user.verify_token_level_1(l1)
+        except jwt.InvalidTokenError:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Finally check the action type
+        if actiontype:
+            if actiontype == 'prescription':
+                if user.role != User.Role.DOCTOR:
+                    return ResponseMessage.INVALID_CREDENTIALS
+            elif actiontype == 'fulfil':
+                if user.role != User.Role.PHARMACIST:
+                    return ResponseMessage.INVALID_CREDENTIALS
+
+        # Refresh with the new token
+        new_l1 = user.generate_token_level_1()
+
+        return JsonResponse({
+            'success': True,
+            'token_level_1': new_l1.decode('ascii'),
+        }, status=200)
+
+    return ResponseMessage.EMPTY_404
