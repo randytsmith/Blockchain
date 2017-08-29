@@ -2,6 +2,7 @@ from authservice.serializers import UserSerializer
 from authservice.models import User
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import default_token_generator
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
@@ -185,5 +186,77 @@ def get_secret(request):
             'token_level_1': new_l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
+
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def forgot_password(request):
+    """
+    Request a reset password link to be sent to the users email.
+    Expecting: email
+    Returns: success
+    """
+
+    if request.method == 'POST':
+
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'email'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        try:
+            user = User.objects.get(email=data['email'])
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = default_token_generator.make_token(user)
+        return JsonResponse({
+            "token": token
+        }, status=200)
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def reset_password(request):
+    """
+    Peforms the password reset.
+    Expecting:
+        GET: email, token
+        DATA: password
+    Returns: Success
+    """
+
+    if request.method == 'POST':
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'email'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = request.GET.get('token', '')
+        if(token == ''):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        try:
+            user = User.objects.get(email=data['email'])
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        if(default_token_generator.check_token(user, token)):
+            return JsonResponse({
+                'success': True
+            }, status=201)
+
+        return ResponseMessage.INVALID_CREDENTIALS
 
     return ResponseMessage.EMPTY_404

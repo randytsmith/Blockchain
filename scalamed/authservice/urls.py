@@ -8,4 +8,6 @@ urlpatterns = [
     url(r'^check$', views.check),
     url(r'^check/(?P<actiontype>(prescription|fulfil))$', views.check),
     url(r'^getsecret$', views.get_secret),
+    url(r'^forgotpw$', views.forgot_password),
+    url(r'^resetpw$', views.reset_password),
 ]
