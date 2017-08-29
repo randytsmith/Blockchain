@@ -14,7 +14,7 @@ KEY_SIZE_BITS = 256
 
 def generate_uuid():
     # TODO check that it is unique
-    return uuid4()
+    return str(uuid4())
 
 
 def generate_secret():
@@ -109,7 +109,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.email = type(self).objects.normalize_email(self.email)
 
     def generate_token_level_0(self):
-        token = jwt.encode({'level': 0}, self.uuid + 'secret', algorithm='HS256')
+        token = jwt.encode({
+            'level': 0
+        }, self.uuid + 'secret', algorithm='HS256')
         return token
 
     def generate_token_level_1(self):
