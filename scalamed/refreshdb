@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+if ! env | grep VIRTUAL_ENV &>/dev/null; then
+    echo "You should probably activate your venv"
+    exit 1
+fi
+
+for dir in $(find . -name migrations); do
+    for file in $(ls $dir | awk '/[0-9]{4}.*\.py$/'); do
+        filename="${dir}/${file}"
+        echo "Deleting $filename"
+        if ! rm "$filename"; then
+            echo "> Failed."
+            exit 1
+        fi
+    done
+done
+
+
+if [[ -x "./manage.py" ]]; then
+    m="manage.py"
+elif [[ -x "./manage" ]]; then
+    m="manage"
+else
+    echo "where is the manage script!!"
+    exit 1
+fi
+
+if ! ./${m} makemigrations; then
+    echo "> failed to makemigrations"
+    exit 1
+fi
+
+if ! ./${m} migrate; then
+    echo "> failed to migrate"
+    exit 1
+fi
