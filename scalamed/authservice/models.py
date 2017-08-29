@@ -5,12 +5,21 @@ from django.utils import timezone
 from uuid import uuid4
 
 import jwt
+from secrets import token_bytes
 from datetime import datetime, timedelta
+
+
+KEY_SIZE_BITS = 256
 
 
 def generate_uuid():
     # TODO check that it is unique
     return uuid4()
+
+
+def generate_secret():
+    # TODO cryptographically secure secret
+    return token_bytes(KEY_SIZE_BITS // 8).hex()
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -78,6 +87,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     date_joined = models.DateTimeField('date joined', default=timezone.now)
+
+    secret = models.CharField(
+        blank=False,
+        unique=True,
+        max_length=(KEY_SIZE_BITS // 8) * 2,
+        default=generate_secret
+    )
 
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'email'

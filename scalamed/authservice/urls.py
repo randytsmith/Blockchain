@@ -7,4 +7,5 @@ urlpatterns = [
     url(r'^users$', views.user_list),
     url(r'^check$', views.check),
     url(r'^check/(?P<actiontype>(prescription|fulfil))$', views.check),
+    url(r'^getsecret$', views.get_secret),
 ]

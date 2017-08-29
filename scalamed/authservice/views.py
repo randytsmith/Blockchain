@@ -139,3 +139,51 @@ def check(request, actiontype=None):
         }, status=200)
 
     return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def get_secret(request):
+    """
+    Checks the user tokens, if valid returns the user secret for row encryption.
+    Expecting token_level_0, token_level_1, uuid.
+    Returns new token_level_0 and the secret.
+    """
+
+    if request.method == 'POST':
+
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        l0 = data['token_level_0']
+        l1 = data['token_level_1']
+        uuid = data['uuid']
+
+        # Verify the user id
+        try:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Verify the tokens are valid.
+        try:
+            user.verify_token_level_0(l0)
+            user.verify_token_level_1(l1)
+        except jwt.InvalidTokenError:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Refresh with the new token
+        new_l1 = user.generate_token_level_1()
+
+        return JsonResponse({
+            'token_level_1': new_l1.decode('ascii'),
+            'secret': user.secret,
+        }, status=200)
+
+    return ResponseMessage.EMPTY_404

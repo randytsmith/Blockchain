@@ -5,7 +5,7 @@ from rest_framework import serializers
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('email', 'password', 'uuid', 'role')
+        fields = ('email', 'password', 'uuid', 'role', 'secret')
 
     def is_valid(self, raise_exception=False):
         valid = super().is_valid(raise_exception)
