@@ -1,13 +1,58 @@
 from authservice.serializers import UserSerializer
 from authservice.models import User
 from authservice.responsemessage import ResponseMessage
+from binascii import hexlify
+from datetime import datetime, timedelta
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from jwt import PyJWT, InvalidTokenError, MissingRequiredClaimError
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
+from secrets import token_bytes
+import struct
 
-import jwt
+
+jwt = PyJWT(options={'require_exp': True, 'require_iat': True, })
+
+counter = 0
+
+
+def generate_token(email, counter):
+    now = datetime.utcnow()
+    ttl = timedelta(minutes=10)
+
+    nonce = hexlify(token_bytes(16) + struct.pack(">Q", counter))
+    claims = {
+
+        # These claims are validated by PyJWT
+        'exp': now + ttl,
+        'iat': now,
+
+        # These claims we have to validate ourselves
+        'sub': email,
+        'jti': nonce.decode('utf8'),
+    }
+    return jwt.encode(claims, settings.SECRET_KEY)
+
+
+def validate_token(token):
+    try:
+        token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+
+        if 'sub' not in token:
+            raise MissingRequiredClaimError('sub')
+
+        if 'jti' not in token:
+            raise MissingRequiredClaimError('jti')
+
+        return True
+
+    except InvalidTokenError as e:
+        print(str(e))
+
+    return False
 
 
 @csrf_exempt
@@ -185,5 +230,81 @@ def get_secret(request):
             'token_level_1': new_l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
+
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def forgot_password(request):
+    """
+    Request a reset password link to be sent to the users email.
+    Expecting: email
+    Returns: success
+    """
+    global counter
+
+    if request.method == 'POST':
+
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'email'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        try:
+            user = User.objects.get(email=data['email'])
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = generate_token(user.email, counter)
+        return JsonResponse({
+            "token": token.decode('utf8')
+        }, status=200)
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def reset_password(request):
+    """
+    Peforms the password reset.
+    Expecting:
+        GET: email, token
+        DATA: password
+    Returns: Success
+    """
+
+    if request.method == 'POST':
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+
+        allowed_keys = {'email', 'token'}
+
+        if set(data.keys()) != allowed_keys:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = data['token']
+
+        if not validate_token(token):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        try:
+            User.objects.get(email=data['email'])
+
+            # TODO match email from token to email in POST data
+
+            return JsonResponse({
+                'success': True
+            }, status=201)
+
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        return ResponseMessage.INVALID_CREDENTIALS
 
     return ResponseMessage.EMPTY_404
