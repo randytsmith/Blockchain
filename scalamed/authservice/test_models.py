@@ -1,8 +1,7 @@
 from authservice.models import User
 from datetime import timedelta
 from django.test import TestCase
-from jwt.exceptions import ExpiredSignatureError
-from unittest.mock import patch
+import time
 
 
 class UserTestCase(TestCase):
@@ -31,22 +30,49 @@ class UserTestCase(TestCase):
             email="bob@example.com",
             password="password123")
 
-        t0 = user.generate_token_level_0()
-        user.verify_token_level_0(t0)
+        token = user.generate_token(extra={'level': 0})
+        self.assertTrue(user.validate_token(token, extra={'level': 0}))
 
-    @patch('authservice.models.timedelta')
-    def test_token_level_1_expiry(self, timedelta_mock):
+    def test_token_level_1_default(self):
         """Test the generation and validation of tokens"""
 
-        def foo(*args, **kwargs):
-            return timedelta(seconds=-1)
-
-        timedelta_mock.side_effect = foo
         user = User.objects.create_user(
             username=None,
             email="bob@example.com",
             password="password123")
-        t0 = user.generate_token_level_1()
 
-        with self.assertRaises(ExpiredSignatureError):
-            user.verify_token_level_1(t0)
+        token = user.generate_token(extra={'level': 1})
+        self.assertTrue(user.validate_token(token, extra={'level': 1}))
+
+    def test_token_expiry(self):
+        user = User.objects.create_user(
+            username=None,
+            email="bob@example.com",
+            password="password123")
+
+        token = user.generate_token(exp=timedelta(seconds=0))
+        time.sleep(1)
+        self.assertFalse(user.validate_token(token))
+
+    def test_token_subject(self):
+        pass
+
+    def test_counter(self):
+        user = User.objects.create_user(
+            username=None,
+            email="bob@example.com",
+            password="password123")
+
+        self.assertEquals(user.counter(), 0)
+        self.assertEquals(user.counter(), 1)
+        self.assertEquals(user.counter(), 2)
+        self.assertEquals(user.counter(), 3)
+
+    def test_tokens(self):
+        user = User.objects.create_user(
+            username=None,
+            email="bob@example.com",
+            password="password123")
+
+        t = user.generate_token()
+        user.validate_token(t)
