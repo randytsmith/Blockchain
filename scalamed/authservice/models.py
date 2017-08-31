@@ -121,6 +121,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = 'user'
         verbose_name_plural = 'users'
 
+    def __str__(self):
+        return "User(uuid={}, email={}, role={})".format(
+            self.uuid, self.email, self.role)
+
     def clean(self):
         super().clean()
         self.email = type(self).objects.normalize_email(self.email)
