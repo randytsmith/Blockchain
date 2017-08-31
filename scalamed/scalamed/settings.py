@@ -130,3 +130,69 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 AUTH_USER_MODEL = 'authservice.User'
+
+_megabytes = 1024 * 1024
+
+# Logging configuration which will be passed to LOGGING_CONFIG which defaults to
+# logging.config.dictConfig(...); the schema is defined here:
+# docs.python.org/3/library/logging.config.html#logging-config-dictschema
+LOGGING = {
+    # version of the dictConfig schema
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',
+            'datefmt': '%Y-%m-%dT%H:%M:%S%z',
+        },
+    },
+    'filters': {
+        'main_filter': {
+            'name': 'scalamed'
+        }
+    },
+    'handlers': {
+
+        # Log to STDOUT
+        'default': {
+            'level': 'INFO',
+            'formatter': 'standard',
+            'class': 'logging.StreamHandler',
+            'filters': ['main_filter']
+        },
+
+        # Includes all logs 'WARNING' and above
+        'default_file': {
+            'level': 'WARNING',
+            'formatter': 'standard',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'logs/error.log',
+            'filters': ['main_filter'],
+            'maxBytes': 256 * _megabytes,
+            'backupCount': 9,
+        },
+
+        # Includes only logging from this project
+        'debug_file': {
+            'level': 'DEBUG',
+            'formatter': 'standard',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filters': ['main_filter'],
+            'filename': 'logs/debug.log',
+            'maxBytes': 256 * _megabytes,
+            'backupCount': 9,
+        },
+
+    },
+    'loggers': {
+        '': {
+            'handlers': [
+                'default',
+                'default_file',
+                'debug_file'
+            ],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}

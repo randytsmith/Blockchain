@@ -9,6 +9,7 @@ from hashlib import sha256
 from jwt import PyJWT, InvalidTokenError, MissingRequiredClaimError
 from secrets import token_bytes
 from uuid import uuid4
+from scalamed.logging import log
 
 import struct
 
@@ -120,6 +121,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = 'user'
         verbose_name_plural = 'users'
 
+    def __str__(self):
+        return "User(uuid={}, email={}, role={})".format(
+            self.uuid, self.email, self.role)
+
     def clean(self):
         super().clean()
         self.email = type(self).objects.normalize_email(self.email)
@@ -220,7 +225,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             return True
 
         except InvalidTokenError as e:
+            log.warning(str(e))
             pass
-        #print(str(e))
 
         return False

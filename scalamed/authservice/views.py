@@ -6,12 +6,13 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
+from scalamed.logging import log, logroute
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def user_list(request):
     """List all users, or create a new user."""
-
     if request.method == 'GET':
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
@@ -21,6 +22,7 @@ def user_list(request):
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def register(request):
     """Register a new user into the system."""
 
@@ -28,27 +30,35 @@ def register(request):
         try:
             data = JSONParser().parse(request)
         except ParseError as e:
+            log.error(str(e))
             return ResponseMessage.INVALID_MESSAGE(str(e))
 
         x = set(data.keys()) - {'email', 'password'}
         if len(x):
-            # TODO better words
-            return ResponseMessage.INVALID_MESSAGE("Extra fields present")
+            log.error("Extra fields present.")
+            return ResponseMessage.INVALID_MESSAGE("Extra fields present.")
 
         serializer = UserSerializer(data=data)
 
-        if serializer.is_valid():
-            user = User.objects.create_user(
-                username=None,
-                email=serializer.data['email'],
-                password=serializer.data['password'])
-            return JsonResponse({'email': user.email}, status=201)
-        return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
+        if not serializer.is_valid():
+            log.warning("{} => {}".format(
+                "Could not serialize user data.",
+                str(serializer.errors),
+                data))
+            return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
+
+        user = User.objects.create_user(
+            username=None,
+            email=serializer.data['email'],
+            password=serializer.data['password'])
+        log.info("User created: {}".format(user))
+        return JsonResponse({'email': user.email}, status=201)
 
     return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def login(request):
     """
     Login a new user, expecting their e-mail and password as the credentials.
@@ -83,6 +93,7 @@ def login(request):
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def check(request, actiontype=None):
     """
     Checks if the given token is valid, expecting their uuid, token_level_1, token_level_0.
@@ -140,6 +151,7 @@ def check(request, actiontype=None):
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def get_secret(request):
     """
     Checks the user tokens, if valid returns the user secret for row encryption.
@@ -188,6 +200,7 @@ def get_secret(request):
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def forgot_password(request):
     """
     Request a reset password link to be sent to the users email.
@@ -220,6 +233,7 @@ def forgot_password(request):
 
 
 @csrf_exempt
+@logroute(decoder='json')
 def reset_password(request):
     """
     Peforms the password reset.
