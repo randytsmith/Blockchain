@@ -2,15 +2,21 @@
 
 Authentication Service for the ScalaMed Project.
 
-## Running
+## Installation and Running
+
+There are two ways to run/install this code, with or without docker. First, get
+the repo:
+
+```bash
+$ git clone git@bitbucket.org:GyrixSigma/auth.git scalamed-auth
+$ cd scalamed-auth
+```
+
+### Without Docker
 
 ```bash
 # Install virtualenv and python3.X -- This is platform dependent.
 $ ...
-
-# Clone this repository
-$ git clone git@bitbucket.org:GyrixSigma/auth.git scalamed-auth
-$ cd scalamed-auth
 
 # Set up virtualenv with python3, and activate
 $ virtualenv --python=python3 venv
@@ -31,8 +37,30 @@ $ ./manage runserver
 $ curl -v localhost:8000/auth/users
 ```
 
-We will use docker in the near future to wrap this service. If it's too much
-trouble install the above, we can get a dockerfile completed ASAP.
+### With Docker
+
+If you install [docker](https://www.docker.com/community-edition#/download), and
+[docker-compose](https://docs.docker.com/compose/install/). Docker Compose can
+be installed via Python's pip, if you prefer.
+
+```bash
+$ pip install docker-compose
+```
+
+After setting up docker and docker-compose you should be able to build and run
+the app:
+
+```bash
+$ cd scalamed-auth
+$ sudo docker-compose up --build -d
+```
+
+To bring it down (i.e. shutdown the app)
+
+```bash
+$ cd scalamed-auth
+$ sudo docker-compose down
+```
 
 ## API
 
