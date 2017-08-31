@@ -1,5 +1,5 @@
 from authservice.managers import UserManager
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 from datetime import datetime, timedelta
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.conf import settings
@@ -12,12 +12,12 @@ from uuid import uuid4
 
 import struct
 
-
-jwt = PyJWT(options={'require_exp': True, 'require_iat': True, })
-
 KEY_SIZE_BITS = 256
-
 counter = 0
+
+
+class InvalidSubjectError(InvalidTokenError):
+    pass
 
 
 def generate_uuid():
@@ -103,6 +103,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=generate_secret
     )
 
+    # DO NOT USE THIS DIRECTLY; USE COUNTER()
+    _counter = models.CharField(
+        blank=False,
+        unique=False,
+        max_length=16,
+        default='0000000000000000',
+    )
+
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['password']
@@ -132,77 +140,87 @@ class User(AbstractBaseUser, PermissionsMixin):
             .encode('utf8')
         ).hexdigest()
 
-    def generate_token(self):
+    def counter(self):
+        """Returns the next count. Represented as a 64 bit unsigned integer."""
+        ctr = struct.unpack('<Q', unhexlify(self._counter.encode('utf8')))[0]
+        self._counter = hexlify(struct.pack('<Q', ctr + 1)).decode('utf8')
+        return ctr
+
+    def generate_token(
+            self,
+            exp=timedelta(minutes=30),
+            iat=True,
+            sub=True,
+            jti=True,
+            extra=None):
+
         global counter
         now = datetime.utcnow()
-        ttl = timedelta(minutes=10)
 
-        nonce = hexlify(token_bytes(16) + struct.pack(">Q", counter))
-        claims = {
+        claims = {}
+        options = {}
 
-            # These claims are validated by PyJWT
-            'exp': now + ttl,
-            'iat': now,
+        if isinstance(exp, timedelta):
+            claims['exp'] = now + exp
+            options['require_exp'] = True
 
-            # These claims we have to validate ourselves
-            'sub': self.email,
-            'jti': nonce.decode('utf8'),
-        }
-        return jwt.encode(claims, settings.SECRET_KEY)
+        if iat:
+            claims['iat'] = now
+            options['require_iat'] = True
 
-    def validate_token(self, token):
+        jwt = PyJWT(options=options)
+
+        if sub:
+            claims['sub'] = self.uuid
+
+        if jti:
+            # TODO this needs to be better, counter should be user specific
+            nonce = hexlify(
+                token_bytes(16) +
+                struct.pack(">Q", counter))
+            counter += 1
+            claims['jti'] = nonce.decode('utf8')
+
+        if extra:
+            assert(isinstance(extra, dict))
+            for k, v in extra.items():
+                assert(k not in claims)
+            claims.update(extra)
+
+        return jwt.encode(claims, self.userkey(), algorithm='HS256')
+
+    def validate_token(
+            self, token, iat=True, sub=True, jti=True, exp=True, extra=None):
+
+        jwt = PyJWT(options={
+            'require_exp': exp,
+            'require_iat': iat
+        })
+
         try:
-            token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            token = jwt.decode(token, self.userkey(), algorithms=['HS256'])
 
-            if 'sub' not in token:
-                raise MissingRequiredClaimError('sub')
+            if sub:
+                if 'sub' not in token:
+                    raise MissingRequiredClaimError('sub')
+                if token['sub'] != self.uuid:
+                    raise InvalidSubjectError()
 
-            if 'jti' not in token:
+            if jti and 'jti' not in token:
                 raise MissingRequiredClaimError('jti')
+
+            if extra:
+                assert(isinstance(extra, dict))
+                for k, v in extra.items():
+                    if k not in token:
+                        raise MissingRequiredClaimError(token)
+                    if token[k] is not v:
+                        raise InvalidTokenError()
 
             return True
 
         except InvalidTokenError as e:
-            print(str(e))
+            pass
+        #print(str(e))
 
         return False
-
-    def generate_token_level_0(self):
-        return jwt.encode({
-            'level': 0,
-            'exp': datetime.utcnow() + timedelta(days=30),
-            'iat': datetime.utcnow(),
-            'sub': self.uuid,
-        }, self.userkey(), algorithm='HS256')
-
-    def generate_token_level_1(self):
-        return jwt.encode({
-            'level': 1,
-            'exp': datetime.utcnow() + timedelta(minutes=30),
-            'iat': datetime.utcnow(),
-            'sub': self.uuid,
-        }, self.userkey(), algorithm='HS256')
-
-    def verify_token_level_0(self, token):
-        if not token:
-            return False
-
-        token = jwt.decode(token, self.userkey(), algorithm='HS256')
-        if token['level'] != 0:
-            raise jwt.InvalidTokenError(
-                "token.level was {} expected {}"
-                .format(token['level'], 0))
-            return False
-        return True
-
-    def verify_token_level_1(self, token):
-        if token is None:
-            return False
-
-        token = jwt.decode(token, self.userkey(), algorithm='HS256')
-        if token['level'] != 1:
-            raise jwt.InvalidTokenError(
-                "token.level was {} expected {}"
-                .format(token['level'], 1))
-            return False
-        return True

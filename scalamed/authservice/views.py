@@ -70,8 +70,8 @@ def login(request):
         if user == None:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = user.generate_token_level_0()
-        l1 = user.generate_token_level_1()
+        l0 = user.generate_token(extra={'level': 0})
+        l1 = user.generate_token(extra={'level': 1})
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -113,10 +113,10 @@ def check(request, actiontype=None):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        try:
-            user.verify_token_level_0(l0)
-            user.verify_token_level_1(l1)
-        except jwt.InvalidTokenError:
+        if not user.validate_token(l0, extra={'level': 0}):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        if not user.validate_token(l1, extra={'level': 1}):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
@@ -129,7 +129,7 @@ def check(request, actiontype=None):
                     return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token_level_1()
+        new_l1 = user.generate_token(extra={'level': 1})
 
         return JsonResponse({
             'success': True,
@@ -170,14 +170,14 @@ def get_secret(request):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        try:
-            user.verify_token_level_0(l0)
-            user.verify_token_level_1(l1)
-        except jwt.InvalidTokenError:
+        if not user.validate_token(l0, extra={'level': 0}):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        if not user.validate_token(l1, extra={'level': 1}):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token_level_1()
+        new_l1 = user.generate_token(extra={'level': 1})
 
         return JsonResponse({
             'token_level_1': new_l1.decode('ascii'),
@@ -194,7 +194,6 @@ def forgot_password(request):
     Expecting: email
     Returns: success
     """
-    global counter
 
     if request.method == 'POST':
 
