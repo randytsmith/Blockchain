@@ -5,13 +5,12 @@ from scalamed.logging import log
 import time
 
 
-# Disable logging for all tests
-log.setLevel(100)
-
-
 class UserTestCase(TestCase):
     def setUp(self):
-        pass
+        log.setLevel(100)
+
+    def tearDown(self):
+        log.setLevel(30)
 
     def test_create_user(self):
         """Test create_user creates a user with working defaults."""

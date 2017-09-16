@@ -30,7 +30,10 @@ def register(request):
         try:
             data = JSONParser().parse(request)
         except ParseError as e:
-            log.error(str(e))
+            log.warning("Parse Error: {}".format(str(e)))
+            return ResponseMessage.INVALID_MESSAGE(str(e))
+        except Exception as e:
+            log.error("Unexpected exception: {}".format(str(e)))
             return ResponseMessage.INVALID_MESSAGE(str(e))
 
         x = set(data.keys()) - {'email', 'password'}
