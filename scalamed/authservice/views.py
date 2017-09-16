@@ -1,5 +1,5 @@
 from authservice.serializers import UserSerializer
-from authservice.models import User
+from authservice.models import User, ValidTokens
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
@@ -80,14 +80,52 @@ def login(request):
         if user == None:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = user.generate_token(extra={'level': 0})
-        l1 = user.generate_token(extra={'level': 1})
+        l0 = user.generate_token(level=0)
+        l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
             'token_level_1': l1.decode('ascii'),
             'uuid': user.uuid,
         }, status=200)
+
+    return ResponseMessage.EMPTY_404
+
+
+@csrf_exempt
+def logout(request):
+    """
+    Invalidate the current user session.
+    """
+
+    if request.method == 'POST':
+        try:
+            data = JSONParser().parse(request)
+        except ParseError as e:
+            log.debug("Failed to parse JSON: {}".format(str(e)))
+            return ResponseMessage.INVALID_MESSAGE("")
+
+        l0 = data['token_level_0']
+        l1 = data['token_level_1']
+        uuid = data['uuid']
+
+        try:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            log.debug("User does not exist: uuid={}".format(uuid))
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Verify the tokens are valid.
+        if not user.validate_token(l0, level=0):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        if not user.validate_token(l1, level=1):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        user.delete_token(l0)
+        user.delete_token(l1)
+
+        return JsonResponse({'success': True}, status=200)
 
     return ResponseMessage.EMPTY_404
 
@@ -124,10 +162,10 @@ def check(request, actiontype=None):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, extra={'level': 0}):
+        if not user.validate_token(l0, level=0):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, extra={'level': 1}):
+        if not user.validate_token(l1, level=1):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
@@ -140,7 +178,7 @@ def check(request, actiontype=None):
                     return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token(extra={'level': 1})
+        new_l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'success': True,
@@ -182,14 +220,16 @@ def get_secret(request):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, extra={'level': 0}):
+        if not user.validate_token(l0, level=0):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, extra={'level': 1}):
+        if not user.validate_token(l1, level=1):
             return ResponseMessage.INVALID_CREDENTIALS
+
+        # TODO invalidate token_1, make a renew function for this?
 
         # Refresh with the new token
-        new_l1 = user.generate_token(extra={'level': 1})
+        new_l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'token_level_1': new_l1.decode('ascii'),

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from hashlib import sha256
-from jwt import PyJWT, InvalidTokenError, MissingRequiredClaimError
+from jwt import PyJWT, InvalidTokenError
 from secrets import token_bytes
 from uuid import uuid4
 from scalamed.logging import log
@@ -149,83 +149,112 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Returns the next count. Represented as a 64 bit unsigned integer."""
         ctr = struct.unpack('<Q', unhexlify(self._counter.encode('utf8')))[0]
         self._counter = hexlify(struct.pack('<Q', ctr + 1)).decode('utf8')
+        self.save()
         return ctr
 
-    def generate_token(
-            self,
-            exp=timedelta(minutes=30),
-            iat=True,
-            sub=True,
-            jti=True,
-            extra=None):
-
+    # TODO this needs to be better, counter should be user specific and
+    # survive us failing state. Like, we increase the counter by 10 when
+    # we fail to ensure we don't resuse, etc...
+    def __generate_nonce(self):
         global counter
-        now = datetime.utcnow()
+        nonce = hexlify(token_bytes(16) + struct.pack(">Q", counter))
+        counter += 1
+        return nonce.decode('utf8')
 
-        claims = {}
-        options = {}
+    def generate_token(self, level, exp=timedelta(minutes=30)):
+        assert(isinstance(exp, timedelta))
+        assert(isinstance(level, int))
 
-        if isinstance(exp, timedelta):
-            claims['exp'] = now + exp
-            options['require_exp'] = True
+        now = timezone.now()
 
-        if iat:
-            claims['iat'] = now
-            options['require_iat'] = True
+        claims = {
+            'iat': now,
+            'exp': now + exp,
+            'sub': self.uuid,
+            'jti': self.__generate_nonce(),
+            'level': level,
+        }
 
-        jwt = PyJWT(options=options)
+        jwt = PyJWT(options={
+            'require_exp': True,
+            'require_iat': True,
+        })
 
-        if sub:
-            claims['sub'] = self.uuid
-
-        if jti:
-            # TODO this needs to be better, counter should be user specific
-            nonce = hexlify(
-                token_bytes(16) +
-                struct.pack(">Q", counter))
-            counter += 1
-            claims['jti'] = nonce.decode('utf8')
-
-        if extra:
-            assert(isinstance(extra, dict))
-            for k, v in extra.items():
-                assert(k not in claims)
-            claims.update(extra)
+        ValidTokens.objects.create(
+            jti=claims['jti'], exp=claims['exp'], user=self)
 
         return jwt.encode(claims, self.userkey(), algorithm='HS256')
 
-    def validate_token(
-            self, token, iat=True, sub=True, jti=True, exp=True, extra=None):
+    def __validate_and_get_claims(self, session_token, level):
+        assert(isinstance(level, int))
 
         jwt = PyJWT(options={
-            'require_exp': exp,
-            'require_iat': iat
+            'require_exp': True,
+            'require_iat': True,
         })
 
         try:
-            token = jwt.decode(token, self.userkey(), algorithms=['HS256'])
-
-            if sub:
-                if 'sub' not in token:
-                    raise MissingRequiredClaimError('sub')
-                if token['sub'] != self.uuid:
-                    raise InvalidSubjectError()
-
-            if jti and 'jti' not in token:
-                raise MissingRequiredClaimError('jti')
-
-            if extra:
-                assert(isinstance(extra, dict))
-                for k, v in extra.items():
-                    if k not in token:
-                        raise MissingRequiredClaimError(token)
-                    if token[k] is not v:
-                        raise InvalidTokenError()
-
-            return True
-
+            token = jwt.decode(
+                session_token,
+                self.userkey(),
+                algorithms=['HS256'])
         except InvalidTokenError as e:
             log.warning(str(e))
-            pass
+            return False
 
-        return False
+        if 'sub' not in token:
+            return False
+
+        if token['sub'] != self.uuid:
+            return False
+
+        if 'jti' not in token:
+            return False
+
+        if token['level'] is not level:
+            return False
+
+        # Is the token in our database of valid tokens?
+        try:
+            ValidTokens.objects.get(jti=token['jti'], user=self)
+        except ValidTokens.DoesNotExist:
+            return False
+
+        return token
+
+    def validate_token(self, token, level):
+        return self.__validate_and_get_claims(token, level) is not False
+
+    def delete_token(self, session_token, level):
+        assert(isinstance(session_token, dict))
+
+        claims = self.__validation_and_get_claims(session_token, level)
+
+        if not claims:
+            return False
+
+        try:
+            tokenmeta = ValidTokens.objects.get(jti=claims['jti'], user=self)
+            tokenmeta.delete()
+            return True
+        except ValidTokens.DoesNotExist:
+            return False
+
+
+# TODO this table needs to be cleared out now and again.
+class ValidTokens(models.Model):
+    jti = models.CharField(
+        blank=False,
+        null=False,
+        max_length=48,
+        help_text='The JTI from a token.'
+    )
+
+    exp = models.DateTimeField(
+        blank=False,
+        null=False)
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = (("jti", "user"), )
