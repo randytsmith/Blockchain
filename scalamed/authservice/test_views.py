@@ -1,13 +1,13 @@
 from authservice import views
 from django.test import TestCase
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIClient
 from scalamed.logging import log
 
 
 class ViewsTestCase(TestCase):
 
     def setUp(self):
-        self.factory = APIRequestFactory()
+        self.client = APIClient()
         # log.setLevel(100)
 
     def tearDown(self):
@@ -19,6 +19,5 @@ class ViewsTestCase(TestCase):
             'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
         }
 
-        request = self.factory.put('/auth/register', body, format='json')
-        response = views.register(request)
+        response = self.client.put('/auth/register', body, format='json')
         self.assertEqual(response.status_code, 201)

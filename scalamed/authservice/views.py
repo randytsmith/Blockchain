@@ -3,9 +3,11 @@ from authservice.models import User, ValidTokens
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
+from rest_framework.views import APIView
 from scalamed.logging import log, logroute
 
 
@@ -21,20 +23,19 @@ def user_list(request):
     return ResponseMessage.EMPTY_404
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def register(request):
-    """Register a new user into the system."""
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(APIView):
 
-    if request.method == 'PUT':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            log.warning("Parse Error: {}".format(str(e)))
-            return ResponseMessage.INVALID_MESSAGE(str(e))
-        except Exception as e:
-            log.error("Unexpected exception: {}".format(str(e)))
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def put(self, request):
+        """Register a new user into the system."""
+
+        data = request.data
 
         x = set(data.keys()) - {'email', 'password'}
         if len(x):
@@ -56,8 +57,6 @@ def register(request):
             password=serializer.data['password'])
         log.info("User created: {}".format(user))
         return JsonResponse({'email': user.email}, status=201)
-
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
