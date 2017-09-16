@@ -46,7 +46,7 @@ class RegisterView(APIView):
 
         if not serializer.is_valid():
             log.warning("{} => {}".format(
-                "Could not serialize user data.",
+                "User data was deemed invalid by UserSerializer",
                 str(serializer.errors),
                 data))
             return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
@@ -59,23 +59,28 @@ class RegisterView(APIView):
         return JsonResponse({'email': user.email}, status=201)
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def login(request):
-    """
-    Login a new user, expecting their e-mail and password as the credentials.
-    We return them a fresh token_level_0, token_level_1, and the UUID of the
-    user.
-    """
+@method_decorator(csrf_exempt, name='dispatch')
+class LoginView(APIView):
 
-    if request.method == 'POST':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    parser_classes = (JSONParser, )
 
-        email = data['email']
-        password = data['password']
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request):
+        """
+        Login a new user, expecting their e-mail and password as the credentials.
+        We return them a fresh token_level_0, token_level_1, and the UUID of the
+        user.
+        """
+        x = set(request.data.keys()) - {'email', 'password'}
+        if len(x):
+            log.error("Extra fields present.")
+            return ResponseMessage.INVALID_MESSAGE("Extra fields present.")
+
+        email = request.data['email']
+        password = request.data['password']
 
         user = authenticate(username=email, password=password)
 
@@ -90,8 +95,6 @@ def login(request):
             'token_level_1': l1.decode('ascii'),
             'uuid': user.uuid,
         }, status=200)
-
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
