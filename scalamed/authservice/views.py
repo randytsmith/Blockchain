@@ -131,8 +131,8 @@ def logout(request):
         if not user.validate_token(l1, level=1):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        user.delete_token(l0)
-        user.delete_token(l1)
+        user.delete_token(l0, level=0)
+        user.delete_token(l1, level=1)
 
         return JsonResponse({'success': True}, status=200)
 

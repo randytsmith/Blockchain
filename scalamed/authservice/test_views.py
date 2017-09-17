@@ -114,3 +114,23 @@ class ViewsTestCase(TestCase):
             body['token_level_1'] = token
             fail_response = self.client.post('/auth/check', body, format='json')
             self.assertEqual(fail_response.status_code, 400)
+
+    def test_logout(self):
+
+        body = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register and log in
+        response = self.client.put('/auth/register', body, format='json')
+        response = self.client.post('/auth/login', body, format='json')
+
+        # Log out the user
+        body = response.json()
+        response = self.client.post('/auth/logout', body, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        # {Token 0} and {Token 0, Token 1} shouldn't be authenticated anymore.
+        response = self.client.post('/auth/check', body, format='json')
+        self.assertEqual(response.status_code, 400)
