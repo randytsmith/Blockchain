@@ -10,7 +10,7 @@ urlpatterns = [
     url(r'^users$', views.user_list),
     url(r'^check/(?P<actiontype>(prescription|fulfil))$',
         views.CheckView.as_view()),
-    url(r'^getsecret$', views.get_secret),
+    url(r'^getsecret$', views.GetSecretView.as_view()),
     url(r'^forgotpw$', views.forgot_password),
     url(r'^resetpw$', views.reset_password),
 ]

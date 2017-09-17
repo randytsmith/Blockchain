@@ -1,3 +1,4 @@
+from authservice.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 from scalamed.logging import log
@@ -161,3 +162,28 @@ class ViewsTestCase(TestCase):
         body = response.json()
         response = self.client.post('/auth/check', body, format='json')
         self.assertEqual(response.status_code, 200)
+
+    def test_get_secret(self):
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register and log in
+        response = self.client.put('/auth/register', user_details, format='json')
+        uuid = response.json()['uuid']
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEquals(response.status_code, 200)
+
+        # Get the tokens and uuid to use for further requests that require them
+        body = response.json()
+        response = self.client.post('/auth/getsecret', body, format='json')
+        self.assertEquals(response.status_code, 200)
+
+        self.assertIn('token_level_1', response.json())
+        self.assertIn('secret', response.json())
+        user_details['secret'] = response.json()['secret']
+
+        user = User.objects.get(uuid=uuid)
+        self.assertEqual(user.secret, user_details['secret'])

@@ -11,6 +11,28 @@ from rest_framework.views import APIView
 from scalamed.logging import log, logroute
 
 
+def request_must_have(expected, required):
+
+    if not isinstance(expected, set):
+        expected = set(expected)
+
+    if expected == required:
+        return True
+
+    messages = []
+
+    extra = expected - required
+    if extra:
+        messages.append("Extra fields were found: {}".format(extra))
+
+    missing = required - expected
+    if missing:
+        messages.append("Fields were missing: {}".format(missing))
+
+    log.debug("Errors in request: {}".format(messages))
+    return False
+
+
 @csrf_exempt
 @logroute(decoder='json')
 def user_list(request):
@@ -150,13 +172,12 @@ class CheckView(APIView):
     def post(self, request, actiontype=None):
         """
         Checks if the given token is valid, expecting their uuid, token_level_1,
-        token_level_0.  Optional: Checks if the given user is permitted to perform
-        the action.  We return them a fresh token_level_1 on success.
+        token_level_0.  Optional: Checks if the given user is permitted to
+        perform the action.  We return them a fresh token_level_1 on success.
         """
 
         allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-
-        if set(request.data.keys()) != allowed_keys:
+        if not request_must_have(request.data.keys(), allowed_keys):
             return ResponseMessage.INVALID_CREDENTIALS
 
         l0 = request.data['token_level_0']
@@ -197,42 +218,50 @@ class CheckView(APIView):
         }, status=200)
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def get_secret(request):
-    """
-    Checks the user tokens, if valid returns the user secret for row encryption.
-    Expecting token_level_0, token_level_1, uuid.
-    Returns new token_level_0 and the secret.
-    """
+@method_decorator(csrf_exempt, name='dispatch')
+class GetSecretView(APIView):
 
-    if request.method == 'POST':
+    parser_classes = (JSONParser, )
 
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request):
+        """
+        Checks the user tokens, if valid returns the user secret for row
+        encryption.  Expecting token_level_0, token_level_1, uuid.  Returns new
+        token_level_0 and the secret.
+        """
 
         allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-
-        if set(data.keys()) != allowed_keys:
+        if not request_must_have(request.data.keys(), allowed_keys):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = data['token_level_0']
-        l1 = data['token_level_1']
-        uuid = data['uuid']
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         # Verify the user id
         try:
             user = User.objects.get(uuid=uuid)
-        except User.DoesNotExist:
+        except User.DoesNotExist as e:
+            log.debug(
+                "User does not exist, looked for uuid={}: {}"
+                .format(uuid, str(e)))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
         if not user.validate_token(l0, level=0):
+            log.debug(
+                "Invalid token_level_0 for user={} was detected: {}"
+                .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
         if not user.validate_token(l1, level=1):
+            log.debug(
+                "Invalid token_level_1 for user={} was detected: {}"
+                .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
@@ -242,8 +271,6 @@ def get_secret(request):
             'token_level_1': new_l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
-
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
