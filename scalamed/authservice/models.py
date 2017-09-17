@@ -226,9 +226,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.__validate_and_get_claims(token, level) is not False
 
     def delete_token(self, session_token, level):
-        assert(isinstance(session_token, dict))
-
-        claims = self.__validation_and_get_claims(session_token, level)
+        claims = self.__validate_and_get_claims(session_token, level)
 
         if not claims:
             return False

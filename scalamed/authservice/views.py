@@ -139,9 +139,9 @@ def logout(request):
 @logroute(decoder='json')
 def check(request, actiontype=None):
     """
-    Checks if the given token is valid, expecting their uuid, token_level_1, token_level_0.
-    Optional: Checks if the given user is permitted to perform the action.
-    We return them a fresh token_level_1 on success.
+    Checks if the given token is valid, expecting their uuid, token_level_1,
+    token_level_0.  Optional: Checks if the given user is permitted to perform
+    the action.  We return them a fresh token_level_1 on success.
     """
 
     if request.method == 'POST':
@@ -181,6 +181,9 @@ def check(request, actiontype=None):
             elif actiontype == 'fulfil':
                 if user.role != User.Role.PHARMACIST:
                     return ResponseMessage.INVALID_CREDENTIALS
+
+        if not user.delete_token(l1, level=1):
+            log.warning("Could not delete token: {}".format(l1))
 
         # Refresh with the new token
         new_l1 = user.generate_token(level=1)

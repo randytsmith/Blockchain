@@ -55,8 +55,7 @@ class UserTestCase(TestCase):
             email="bob@example.com",
             password="password123")
 
-        token = user.generate_token(level=0, exp=timedelta(seconds=0))
-        time.sleep(1)
+        token = user.generate_token(level=0, exp=timedelta(seconds=-1))
         self.assertFalse(user.validate_token(token, level=0))
 
     def test_token_subject(self):
