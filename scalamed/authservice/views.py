@@ -88,7 +88,7 @@ class LoginView(APIView):
 
         user = authenticate(username=email, password=password)
 
-        if user is not None:
+        if user is None:
             return ResponseMessage.INVALID_CREDENTIALS
 
         l0 = user.generate_token(level=0)

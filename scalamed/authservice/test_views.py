@@ -87,7 +87,6 @@ class ViewsTestCase(TestCase):
         # Register and log in
         response = self.client.put('/auth/register', body, format='json')
         response = self.client.post('/auth/login', body, format='json')
-
         tokens = [response.json()['token_level_1']]
 
         # Check auth
