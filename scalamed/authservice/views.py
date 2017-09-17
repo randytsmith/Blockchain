@@ -12,7 +12,6 @@ from scalamed.logging import log, logroute
 
 
 def request_must_have(expected, required):
-
     if not isinstance(expected, set):
         expected = set(expected)
 
@@ -31,6 +30,17 @@ def request_must_have(expected, required):
 
     log.debug("Errors in request: {}".format(messages))
     return False
+
+
+def request_fields(fields):
+    def decorator(functor):
+        def caller(self, request, *args, **kwargs):
+            if not request_must_have(request.data.keys(), fields):
+                return ResponseMessage.INVALID_CREDENTIALS
+            else:
+                return functor(self, request, *args, **kwargs)
+        return caller
+    return decorator
 
 
 @csrf_exempt
@@ -54,23 +64,17 @@ class RegisterView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'email', 'password'})
     def put(self, request):
         """Register a new user into the system."""
 
-        data = request.data
-
-        x = set(data.keys()) - {'email', 'password'}
-        if len(x):
-            log.error("Extra fields present.")
-            return ResponseMessage.INVALID_MESSAGE("Extra fields present.")
-
-        serializer = UserSerializer(data=data)
+        serializer = UserSerializer(data=request.data)
 
         if not serializer.is_valid():
             log.warning("{} => {}".format(
                 "User data was deemed invalid by UserSerializer",
                 str(serializer.errors),
-                data))
+                request.data))
             return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
 
         user = User.objects.create_user(
@@ -94,20 +98,15 @@ class LoginView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'email', 'password'})
     def post(self, request):
         """
         Login a new user, expecting their e-mail and password as the
         credentials.  We return them a fresh token_level_0, token_level_1, and
         the UUID of the user.
         """
-        x = set(request.data.keys()) - {'email', 'password'}
-        if len(x):
-            log.error("Extra fields present.")
-            return ResponseMessage.INVALID_MESSAGE("Extra fields present.")
-
         email = request.data['email']
         password = request.data['password']
-
         user = authenticate(username=email, password=password)
 
         if user is None:
@@ -132,10 +131,9 @@ class LogoutView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'token_level_0', 'token_level_1', 'uuid'})
     def post(self, request):
-        """
-        Invalidate the current user session.
-        """
+        """Invalidate the current user session."""
 
         l0 = request.data['token_level_0']
         l1 = request.data['token_level_1']
@@ -169,17 +167,13 @@ class CheckView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'token_level_0', 'token_level_1', 'uuid'})
     def post(self, request, actiontype=None):
         """
         Checks if the given token is valid, expecting their uuid, token_level_1,
         token_level_0.  Optional: Checks if the given user is permitted to
         perform the action.  We return them a fresh token_level_1 on success.
         """
-
-        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-        if not request_must_have(request.data.keys(), allowed_keys):
-            return ResponseMessage.INVALID_CREDENTIALS
-
         l0 = request.data['token_level_0']
         l1 = request.data['token_level_1']
         uuid = request.data['uuid']
@@ -227,17 +221,13 @@ class GetSecretView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'token_level_0', 'token_level_1', 'uuid'})
     def post(self, request):
         """
         Checks the user tokens, if valid returns the user secret for row
         encryption.  Expecting token_level_0, token_level_1, uuid.  Returns new
         token_level_0 and the secret.
         """
-
-        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-        if not request_must_have(request.data.keys(), allowed_keys):
-            return ResponseMessage.INVALID_CREDENTIALS
-
         l0 = request.data['token_level_0']
         l1 = request.data['token_level_1']
         uuid = request.data['uuid']
@@ -273,29 +263,24 @@ class GetSecretView(APIView):
         }, status=200)
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def forgot_password(request):
-    """
-    Request a reset password link to be sent to the users email.
-    Expecting: email
-    Returns: success
-    """
+@method_decorator(csrf_exempt, name='dispatch')
+class ForgotPasswordView(APIView):
 
-    if request.method == 'POST':
+    parser_classes = (JSONParser, )
 
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    @request_fields({'email'})
+    def post(self, request):
+        """
+        Request a reset password link to be sent to the users email.
+        Expecting: email
+        Returns: success
+        """
         try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
-
-        allowed_keys = {'email'}
-
-        if set(data.keys()) != allowed_keys:
-            return ResponseMessage.INVALID_CREDENTIALS
-
-        try:
-            user = User.objects.get(email=data['email'])
+            user = User.objects.get(email=request.data['email'])
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
@@ -303,7 +288,6 @@ def forgot_password(request):
         return JsonResponse({
             "token": token.decode('utf8')
         }, status=200)
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt
