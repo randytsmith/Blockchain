@@ -101,22 +101,23 @@ class LoginView(APIView):
         }, status=200)
 
 
-@csrf_exempt
-def logout(request):
-    """
-    Invalidate the current user session.
-    """
+@method_decorator(csrf_exempt, name='dispatch')
+class LogoutView(APIView):
 
-    if request.method == 'POST':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            log.debug("Failed to parse JSON: {}".format(str(e)))
-            return ResponseMessage.INVALID_MESSAGE("")
+    parser_classes = (JSONParser, )
 
-        l0 = data['token_level_0']
-        l1 = data['token_level_1']
-        uuid = data['uuid']
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request):
+        """
+        Invalidate the current user session.
+        """
+
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         try:
             user = User.objects.get(uuid=uuid)
@@ -136,33 +137,31 @@ def logout(request):
 
         return JsonResponse({'success': True}, status=200)
 
-    return ResponseMessage.EMPTY_404
 
+@method_decorator(csrf_exempt, name='dispatch')
+class CheckView(APIView):
 
-@csrf_exempt
-@logroute(decoder='json')
-def check(request, actiontype=None):
-    """
-    Checks if the given token is valid, expecting their uuid, token_level_1,
-    token_level_0.  Optional: Checks if the given user is permitted to perform
-    the action.  We return them a fresh token_level_1 on success.
-    """
+    parser_classes = (JSONParser, )
 
-    if request.method == 'POST':
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    def post(self, request, actiontype=None):
+        """
+        Checks if the given token is valid, expecting their uuid, token_level_1,
+        token_level_0.  Optional: Checks if the given user is permitted to perform
+        the action.  We return them a fresh token_level_1 on success.
+        """
 
         allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
 
-        if set(data.keys()) != allowed_keys:
+        if set(request.data.keys()) != allowed_keys:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = data['token_level_0']
-        l1 = data['token_level_1']
-        uuid = data['uuid']
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         # Verify the user id
         try:
@@ -196,8 +195,6 @@ def check(request, actiontype=None):
             'success': True,
             'token_level_1': new_l1.decode('ascii'),
         }, status=200)
-
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt

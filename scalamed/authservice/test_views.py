@@ -134,3 +134,30 @@ class ViewsTestCase(TestCase):
         # {Token 0} and {Token 0, Token 1} shouldn't be authenticated anymore.
         response = self.client.post('/auth/check', body, format='json')
         self.assertEqual(response.status_code, 400)
+
+    def test_multiple_logins(self):
+
+        user_auth = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register and log in
+        response = self.client.put('/auth/register', user_auth, format='json')
+        response = self.client.post('/auth/login', user_auth, format='json')
+
+        # Log out the user
+        body = response.json()
+        response = self.client.post('/auth/logout', body, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        # {Token 0} and {Token 0, Token 1} shouldn't be authenticated anymore.
+        response = self.client.post('/auth/check', body, format='json')
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.post('/auth/login', user_auth, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        body = response.json()
+        response = self.client.post('/auth/check', body, format='json')
+        self.assertEqual(response.status_code, 200)
