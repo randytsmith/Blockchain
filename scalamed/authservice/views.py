@@ -235,8 +235,6 @@ def get_secret(request):
         if not user.validate_token(l1, level=1):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        # TODO invalidate token_1, make a renew function for this?
-
         # Refresh with the new token
         new_l1 = user.generate_token(level=1)
 
