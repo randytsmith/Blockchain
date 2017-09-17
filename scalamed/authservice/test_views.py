@@ -8,7 +8,7 @@ class ViewsTestCase(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        # log.setLevel(0)
+        log.setLevel(100)
         # print("")
 
     def tearDown(self):

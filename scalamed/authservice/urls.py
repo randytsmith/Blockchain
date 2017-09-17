@@ -12,5 +12,5 @@ urlpatterns = [
         views.CheckView.as_view()),
     url(r'^getsecret$', views.GetSecretView.as_view()),
     url(r'^forgotpw$', views.ForgotPasswordView.as_view()),
-    url(r'^resetpw$', views.reset_password),
+    url(r'^resetpw$', views.ResetPasswordView.as_view()),
 ]

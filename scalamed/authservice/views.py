@@ -290,40 +290,32 @@ class ForgotPasswordView(APIView):
         }, status=200)
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def reset_password(request):
-    """
-    Peforms the password reset.
-    Expecting:
-        GET: email, token
-        DATA: password
-    Returns: Success
-    """
+@method_decorator(csrf_exempt, name='dispatch')
+class ResetPasswordView(APIView):
 
-    if request.method == 'POST':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    parser_classes = (JSONParser, )
 
-        # We only accept what we need
-        allowed_keys = {'email', 'token'}
-        if set(data.keys()) != allowed_keys:
-            return ResponseMessage.INVALID_CREDENTIALS
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
+    @request_fields({'email', 'token'})
+    def post(self, request):
+        """
+        Peforms the password reset.
+        Expecting:
+            GET: email, token
+            DATA: password
+        Returns: Success
+        """
         # Get the user from the email
         try:
-            user = User.objects.get(email=data['email'])
+            user = User.objects.get(email=request.data['email'])
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Validate the token matches the user token
-        if not user.validate_token(data['token']):
+        if not user.validate_token(request.data['token']):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        return JsonResponse({
-            'success': True
-        }, status=201)
-
-    return ResponseMessage.EMPTY_404
+        return JsonResponse({'success': True}, status=201)
