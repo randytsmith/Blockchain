@@ -2,7 +2,6 @@ from authservice.models import User
 from datetime import timedelta
 from django.test import TestCase
 from scalamed.logging import log
-import time
 
 
 class UserTestCase(TestCase):

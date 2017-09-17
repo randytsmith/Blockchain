@@ -11,7 +11,7 @@ class UserManager(DjangoUserManager):
         difference is validation occuring before a user is created; and the fact
         that the username is the email address.
         """
-        assert(username == None)
+        assert(username is None)
         if not email:
             raise ValueError('The given email must be set')
         if not password:

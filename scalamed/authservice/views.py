@@ -1,5 +1,5 @@
 from authservice.serializers import UserSerializer
-from authservice.models import User, ValidTokens
+from authservice.models import User
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
@@ -74,9 +74,9 @@ class LoginView(APIView):
 
     def post(self, request):
         """
-        Login a new user, expecting their e-mail and password as the credentials.
-        We return them a fresh token_level_0, token_level_1, and the UUID of the
-        user.
+        Login a new user, expecting their e-mail and password as the
+        credentials.  We return them a fresh token_level_0, token_level_1, and
+        the UUID of the user.
         """
         x = set(request.data.keys()) - {'email', 'password'}
         if len(x):
@@ -88,7 +88,7 @@ class LoginView(APIView):
 
         user = authenticate(username=email, password=password)
 
-        if user == None:
+        if user is not None:
             return ResponseMessage.INVALID_CREDENTIALS
 
         l0 = user.generate_token(level=0)
