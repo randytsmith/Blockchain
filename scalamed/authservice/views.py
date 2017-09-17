@@ -3,10 +3,34 @@ from authservice.models import User
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
+from rest_framework.views import APIView
 from scalamed.logging import log, logroute
+
+
+def request_must_have(expected, required):
+
+    if not isinstance(expected, set):
+        expected = set(expected)
+
+    if expected == required:
+        return True
+
+    messages = []
+
+    extra = expected - required
+    if extra:
+        messages.append("Extra fields were found: {}".format(extra))
+
+    missing = required - expected
+    if missing:
+        messages.append("Fields were missing: {}".format(missing))
+
+    log.debug("Errors in request: {}".format(messages))
+    return False
 
 
 @csrf_exempt
@@ -21,17 +45,19 @@ def user_list(request):
     return ResponseMessage.EMPTY_404
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def register(request):
-    """Register a new user into the system."""
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(APIView):
 
-    if request.method == 'PUT':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            log.error(str(e))
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def put(self, request):
+        """Register a new user into the system."""
+
+        data = request.data
 
         x = set(data.keys()) - {'email', 'password'}
         if len(x):
@@ -42,7 +68,7 @@ def register(request):
 
         if not serializer.is_valid():
             log.warning("{} => {}".format(
-                "Could not serialize user data.",
+                "User data was deemed invalid by UserSerializer",
                 str(serializer.errors),
                 data))
             return ResponseMessage.INVALID_MESSAGE(str(serializer.errors))
@@ -51,37 +77,44 @@ def register(request):
             username=None,
             email=serializer.data['email'],
             password=serializer.data['password'])
-        log.info("User created: {}".format(user))
-        return JsonResponse({'email': user.email}, status=201)
+        log.info("User has been registered: {}".format(user))
+        return JsonResponse(
+            {
+                'email': user.email,
+                'uuid': user.uuid
+            }, status=201)
 
-    return ResponseMessage.EMPTY_404
 
+@method_decorator(csrf_exempt, name='dispatch')
+class LoginView(APIView):
 
-@csrf_exempt
-@logroute(decoder='json')
-def login(request):
-    """
-    Login a new user, expecting their e-mail and password as the credentials.
-    We return them a fresh token_level_0, token_level_1, and the UUID of the
-    user.
-    """
+    parser_classes = (JSONParser, )
 
-    if request.method == 'POST':
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
-        email = data['email']
-        password = data['password']
+    def post(self, request):
+        """
+        Login a new user, expecting their e-mail and password as the
+        credentials.  We return them a fresh token_level_0, token_level_1, and
+        the UUID of the user.
+        """
+        x = set(request.data.keys()) - {'email', 'password'}
+        if len(x):
+            log.error("Extra fields present.")
+            return ResponseMessage.INVALID_MESSAGE("Extra fields present.")
+
+        email = request.data['email']
+        password = request.data['password']
 
         user = authenticate(username=email, password=password)
 
-        if user == None:
+        if user is None:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = user.generate_token(extra={'level': 0})
-        l1 = user.generate_token(extra={'level': 1})
+        l0 = user.generate_token(level=0)
+        l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -89,33 +122,67 @@ def login(request):
             'uuid': user.uuid,
         }, status=200)
 
-    return ResponseMessage.EMPTY_404
 
+@method_decorator(csrf_exempt, name='dispatch')
+class LogoutView(APIView):
 
-@csrf_exempt
-@logroute(decoder='json')
-def check(request, actiontype=None):
-    """
-    Checks if the given token is valid, expecting their uuid, token_level_1, token_level_0.
-    Optional: Checks if the given user is permitted to perform the action.
-    We return them a fresh token_level_1 on success.
-    """
+    parser_classes = (JSONParser, )
 
-    if request.method == 'POST':
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request):
+        """
+        Invalidate the current user session.
+        """
+
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
-
-        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-
-        if set(data.keys()) != allowed_keys:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            log.debug("User does not exist: uuid={}".format(uuid))
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = data['token_level_0']
-        l1 = data['token_level_1']
-        uuid = data['uuid']
+        # Verify the tokens are valid.
+        if not user.validate_token(l0, level=0):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        if not user.validate_token(l1, level=1):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        user.delete_token(l0, level=0)
+        user.delete_token(l1, level=1)
+
+        return JsonResponse({'success': True}, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CheckView(APIView):
+
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, actiontype=None):
+        """
+        Checks if the given token is valid, expecting their uuid, token_level_1,
+        token_level_0.  Optional: Checks if the given user is permitted to
+        perform the action.  We return them a fresh token_level_1 on success.
+        """
+
+        allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
+        if not request_must_have(request.data.keys(), allowed_keys):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         # Verify the user id
         try:
@@ -124,10 +191,10 @@ def check(request, actiontype=None):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, extra={'level': 0}):
+        if not user.validate_token(l0, level=0):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, extra={'level': 1}):
+        if not user.validate_token(l1, level=1):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
@@ -139,64 +206,71 @@ def check(request, actiontype=None):
                 if user.role != User.Role.PHARMACIST:
                     return ResponseMessage.INVALID_CREDENTIALS
 
+        if not user.delete_token(l1, level=1):
+            log.warning("Could not delete token: {}".format(l1))
+
         # Refresh with the new token
-        new_l1 = user.generate_token(extra={'level': 1})
+        new_l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'success': True,
             'token_level_1': new_l1.decode('ascii'),
         }, status=200)
 
-    return ResponseMessage.EMPTY_404
 
+@method_decorator(csrf_exempt, name='dispatch')
+class GetSecretView(APIView):
 
-@csrf_exempt
-@logroute(decoder='json')
-def get_secret(request):
-    """
-    Checks the user tokens, if valid returns the user secret for row encryption.
-    Expecting token_level_0, token_level_1, uuid.
-    Returns new token_level_0 and the secret.
-    """
+    parser_classes = (JSONParser, )
 
-    if request.method == 'POST':
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
-        try:
-            data = JSONParser().parse(request)
-        except ParseError as e:
-            return ResponseMessage.INVALID_MESSAGE(str(e))
+    def post(self, request):
+        """
+        Checks the user tokens, if valid returns the user secret for row
+        encryption.  Expecting token_level_0, token_level_1, uuid.  Returns new
+        token_level_0 and the secret.
+        """
 
         allowed_keys = {'token_level_0', 'token_level_1', 'uuid'}
-
-        if set(data.keys()) != allowed_keys:
+        if not request_must_have(request.data.keys(), allowed_keys):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = data['token_level_0']
-        l1 = data['token_level_1']
-        uuid = data['uuid']
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+        uuid = request.data['uuid']
 
         # Verify the user id
         try:
             user = User.objects.get(uuid=uuid)
-        except User.DoesNotExist:
+        except User.DoesNotExist as e:
+            log.debug(
+                "User does not exist, looked for uuid={}: {}"
+                .format(uuid, str(e)))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, extra={'level': 0}):
+        if not user.validate_token(l0, level=0):
+            log.debug(
+                "Invalid token_level_0 for user={} was detected: {}"
+                .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, extra={'level': 1}):
+        if not user.validate_token(l1, level=1):
+            log.debug(
+                "Invalid token_level_1 for user={} was detected: {}"
+                .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token(extra={'level': 1})
+        new_l1 = user.generate_token(level=1)
 
         return JsonResponse({
             'token_level_1': new_l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
-
-    return ResponseMessage.EMPTY_404
 
 
 @csrf_exempt

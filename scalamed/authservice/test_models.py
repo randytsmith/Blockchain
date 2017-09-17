@@ -1,12 +1,15 @@
 from authservice.models import User
 from datetime import timedelta
 from django.test import TestCase
-import time
+from scalamed.logging import log
 
 
 class UserTestCase(TestCase):
     def setUp(self):
-        pass
+        log.setLevel(100)
+
+    def tearDown(self):
+        log.setLevel(30)
 
     def test_create_user(self):
         """Test create_user creates a user with working defaults."""
@@ -30,8 +33,8 @@ class UserTestCase(TestCase):
             email="bob@example.com",
             password="password123")
 
-        token = user.generate_token(extra={'level': 0})
-        self.assertTrue(user.validate_token(token, extra={'level': 0}))
+        token = user.generate_token(level=0)
+        self.assertTrue(user.validate_token(token, level=0))
 
     def test_token_level_1_default(self):
         """Test the generation and validation of tokens"""
@@ -41,18 +44,18 @@ class UserTestCase(TestCase):
             email="bob@example.com",
             password="password123")
 
-        token = user.generate_token(extra={'level': 1})
-        self.assertTrue(user.validate_token(token, extra={'level': 1}))
+        token = user.generate_token(level=1)
+        self.assertTrue(user.validate_token(token, level=1))
 
     def test_token_expiry(self):
+
         user = User.objects.create_user(
             username=None,
             email="bob@example.com",
             password="password123")
 
-        token = user.generate_token(exp=timedelta(seconds=0))
-        time.sleep(1)
-        self.assertFalse(user.validate_token(token))
+        token = user.generate_token(level=0, exp=timedelta(seconds=-1))
+        self.assertFalse(user.validate_token(token, level=0))
 
     def test_token_subject(self):
         pass
@@ -74,5 +77,5 @@ class UserTestCase(TestCase):
             email="bob@example.com",
             password="password123")
 
-        t = user.generate_token()
-        user.validate_token(t)
+        t = user.generate_token(level=0)
+        user.validate_token(t, level=0)
