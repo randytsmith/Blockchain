@@ -55,8 +55,12 @@ class RegisterView(APIView):
             username=None,
             email=serializer.data['email'],
             password=serializer.data['password'])
-        log.info("User created: {}".format(user))
-        return JsonResponse({'email': user.email}, status=201)
+        log.info("User has been registered: {}".format(user))
+        return JsonResponse(
+            {
+                'email': user.email,
+                'uuid': user.uuid
+            }, status=201)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

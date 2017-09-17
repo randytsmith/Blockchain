@@ -20,6 +20,8 @@ class ViewsTestCase(TestCase):
 
         response = self.client.put('/auth/register', body, format='json')
         self.assertEqual(response.status_code, 201)
+        self.assertIn('uuid', response.json())
+        self.assertIn('email', response.json())
 
     def test_register_missing_password(self):
         body = {
