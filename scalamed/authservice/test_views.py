@@ -172,7 +172,8 @@ class ViewsTestCase(TestCase):
         }
 
         # Register and log in
-        response = self.client.put('/auth/register', user_details, format='json')
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
         uuid = response.json()['uuid']
 
         response = self.client.post('/auth/login', user_details, format='json')
