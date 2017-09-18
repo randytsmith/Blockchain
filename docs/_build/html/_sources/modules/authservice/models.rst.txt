@@ -21,11 +21,9 @@ Example Usage
         username=None,
         email="username@example.com",
         password="password123")
-    <User: User(uuid=1d7f28a3-8cdf-4aa0-9060-0ad303831aae, email=...
-
     >>> token = user.generate_token(level=0)
-    b'eyJ0...'
-
+    >>> token
+    b'eyJ0eXAiOiJKV1QiL...'
+    >>>
     >>> user.validate_token(token) == True
     True
-
