@@ -22,7 +22,7 @@ class InvalidSubjectError(InvalidTokenError):
 
 
 def generate_uuid():
-    """Generate a UUID"""
+    """Generate a random UUID"""
     return str(uuid4())
 
 
@@ -34,10 +34,17 @@ def generate_secret():
 class User(AbstractBaseUser, PermissionsMixin):
     """
     Merger of AbstractUser/User from django.contrib.auth.models. Due to
-    requiring email as the username.
+    requiring email as the username, and some other modifications to the user
+    class.
     """
 
     class Role:
+        """
+        The role of the user, one of:
+            - ``Role.PATIENT``
+            - ``Role.DOCTOR``
+            - ``Role.PHARMACIST``
+        """
         PATIENT = 'PAT'
         DOCTOR = 'DOC'
         PHARMACIST = 'PHA'
@@ -129,7 +136,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         super().clean()
         self.email = type(self).objects.normalize_email(self.email)
 
-    def userkey(self):
+    def _userkey(self):
         """
         Generate a unique key for each users JWT, derived from the master
         key, user data, and user secret. Use of this key should only be for
@@ -162,6 +169,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         return nonce.decode('utf8')
 
     def generate_token(self, level, exp=timedelta(minutes=30)):
+        """
+        Generate a session token for the user, providing the level and exp.
+
+        :param level: The token level
+        :type level: int
+        :param exp: The expiration delta of the token
+        :type exp: datetime.timedelta
+        :return: JWT encoded claims
+        :rtype: str
+        :Example:
+
+        >>> user = User.objects.create(...)
+        >>> token = user.generate_token(level=0)
+        """
         assert(isinstance(exp, timedelta))
         assert(isinstance(level, int))
 
@@ -183,7 +204,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ValidTokens.objects.create(
             jti=claims['jti'], exp=claims['exp'], user=self)
 
-        return jwt.encode(claims, self.userkey(), algorithm='HS256')
+        return jwt.encode(claims, self._userkey(), algorithm='HS256')
 
     def __validate_and_get_claims(self, session_token, level):
         assert(isinstance(level, int))
@@ -196,7 +217,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         try:
             token = jwt.decode(
                 session_token,
-                self.userkey(),
+                self._userkey(),
                 algorithms=['HS256'])
         except InvalidTokenError as e:
             log.warning(str(e))
@@ -226,6 +247,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.__validate_and_get_claims(token, level) is not False
 
     def delete_token(self, session_token, level):
+        """
+        Validates a token and deletes.
+        :todo: Throw exception if token invalid?
+        """
+
+
         claims = self.__validate_and_get_claims(session_token, level)
 
         if not claims:

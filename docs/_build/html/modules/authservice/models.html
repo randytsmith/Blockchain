@@ -1,0 +1,214 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Auth Service &#8212; ScalaMed Auth 0 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-authservice.models">
+<span id="auth-service"></span><h1>Auth Service<a class="headerlink" href="#module-authservice.models" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="authservice.models.User">
+<em class="property">class </em><code class="descclassname">authservice.models.</code><code class="descname">User</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.User" title="Permalink to this definition">¶</a></dt>
+<dd><p>Merger of AbstractUser/User from django.contrib.auth.models. Due to
+requiring email as the username, and some other modifications to the user
+class.</p>
+<dl class="class">
+<dt id="authservice.models.User.Role">
+<em class="property">class </em><code class="descname">Role</code><a class="headerlink" href="#authservice.models.User.Role" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>The role of the user, one of:</dt>
+<dd><ul class="first last simple">
+<li><code class="docutils literal"><span class="pre">Role.PATIENT</span></code></li>
+<li><code class="docutils literal"><span class="pre">Role.DOCTOR</span></code></li>
+<li><code class="docutils literal"><span class="pre">Role.PHARMACIST</span></code></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="authservice.models.User.counter">
+<code class="descname">counter</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.User.counter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the next count. Represented as a 64 bit unsigned integer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="authservice.models.User.delete_token">
+<code class="descname">delete_token</code><span class="sig-paren">(</span><em>session_token</em>, <em>level</em><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.User.delete_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Validates a token and deletes.
+:todo: Throw exception if token invalid?</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="authservice.models.User.generate_token">
+<code class="descname">generate_token</code><span class="sig-paren">(</span><em>level</em>, <em>exp=datetime.timedelta(0</em>, <em>1800)</em><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.User.generate_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a session token for the user, providing the level and exp.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>level</strong> (<em>int</em>) – The token level</li>
+<li><strong>exp</strong> (<em>datetime.timedelta</em>) – The expiration delta of the token</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">JWT encoded claims</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">str</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Example:</th><td class="field-body"></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">token</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">generate_token</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="authservice.models.ValidTokens">
+<em class="property">class </em><code class="descclassname">authservice.models.</code><code class="descname">ValidTokens</code><span class="sig-paren">(</span><em>id</em>, <em>jti</em>, <em>exp</em>, <em>user</em><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.ValidTokens" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="authservice.models.generate_secret">
+<code class="descclassname">authservice.models.</code><code class="descname">generate_secret</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.generate_secret" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a cryptographically secure secret.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="authservice.models.generate_uuid">
+<code class="descclassname">authservice.models.</code><code class="descname">generate_uuid</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#authservice.models.generate_uuid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a random UUID</p>
+</dd></dl>
+
+<div class="admonition-todo admonition" id="index-0">
+<p class="first admonition-title">Todo</p>
+<p class="last">Make the delete_token, create_token, and validate_token functions clearer to
+use and harder to stuff up using.</p>
+</div>
+<div class="section" id="example-usage">
+<h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">authservice.models</span> <span class="kn">import</span> <span class="n">User</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create_user</span><span class="p">(</span>
+<span class="go">    username=None,</span>
+<span class="go">    email=&quot;username@example.com&quot;,</span>
+<span class="go">    password=&quot;password123&quot;)</span>
+<span class="go">&lt;User: User(uuid=1d7f28a3-8cdf-4aa0-9060-0ad303831aae, email=...</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">token</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">generate_token</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="go">b&#39;eyJ0...&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span><span class="o">.</span><span class="n">validate_token</span><span class="p">(</span><span class="n">token</span><span class="p">)</span> <span class="o">==</span> <span class="bp">True</span>
+<span class="go">True</span>
+</pre></div>
+</td></tr></table></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ScalaMed Auth</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Chris Natoli, Scott Greenup.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="../../_sources/modules/authservice/models.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

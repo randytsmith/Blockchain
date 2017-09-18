@@ -3,6 +3,11 @@ from django.contrib.auth.models import UserManager as DjangoUserManager
 
 
 class UserManager(DjangoUserManager):
+    """
+    Overrides the default behaviour of the DjangoUserManager to use the email as
+    the username, and remove the username from being considered as part of the
+    model.
+    """
 
     def _create_user(self, username, email, password, **extra_fields):
         """

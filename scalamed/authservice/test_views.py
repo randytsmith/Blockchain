@@ -190,3 +190,9 @@ class ViewsTestCase(TestCase):
 
         user = User.objects.get(uuid=uuid)
         self.assertEqual(user.secret, user_details['secret'])
+
+    def test_get_password(self):
+        self.assertFalse("Not yet implemented")
+
+    def test_reset_password(self):
+        self.assertFalse("Not yet implemented")

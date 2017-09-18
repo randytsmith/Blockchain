@@ -162,34 +162,34 @@ LOGGING = {
         },
 
         # Includes all logs 'WARNING' and above
-        'default_file': {
-            'level': 'WARNING',
-            'formatter': 'standard',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': 'logs/error.log',
-            'filters': ['main_filter'],
-            'maxBytes': 256 * _megabytes,
-            'backupCount': 9,
-        },
+        #'default_file': {
+        #    'level': 'WARNING',
+        #    'formatter': 'standard',
+        #    'class': 'logging.handlers.RotatingFileHandler',
+        #    'filename': 'logs/error.log',
+        #    'filters': ['main_filter'],
+        #    'maxBytes': 256 * _megabytes,
+        #    'backupCount': 9,
+        #},
 
         # Includes only logging from this project
-        'debug_file': {
-            'level': 'DEBUG',
-            'formatter': 'standard',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filters': ['main_filter'],
-            'filename': 'logs/debug.log',
-            'maxBytes': 256 * _megabytes,
-            'backupCount': 9,
-        },
+        #'debug_file': {
+        #    'level': 'DEBUG',
+        #    'formatter': 'standard',
+        #    'class': 'logging.handlers.RotatingFileHandler',
+        #    'filters': ['main_filter'],
+        #    'filename': 'logs/debug.log',
+        #    'maxBytes': 256 * _megabytes,
+        #    'backupCount': 9,
+        #},
 
     },
     'loggers': {
         '': {
             'handlers': [
                 'default',
-                'default_file',
-                'debug_file'
+                #'default_file',
+                #'debug_file'
             ],
             'level': 'DEBUG',
             'propagate': True,
