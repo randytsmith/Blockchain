@@ -51,7 +51,7 @@ def user_list(request):
         serializer = UserSerializer(users, many=True)
         return JsonResponse(serializer.data, safe=False)
 
-    return ResponseMessage.EMPTY_404
+    return ResponseMessage.NOT_FOUND
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -194,10 +194,10 @@ class CheckView(APIView):
         if actiontype:
             if actiontype == 'prescription':
                 if user.role != User.Role.DOCTOR:
-                    return ResponseMessage.INVALID_CREDENTIALS
+                    return ResponseMessage.FORBIDDEN('User cannot prescribe')
             elif actiontype == 'fulfil':
                 if user.role != User.Role.PHARMACIST:
-                    return ResponseMessage.INVALID_CREDENTIALS
+                    return ResponseMessage.FORBIDDEN('User cannot fulfill')
 
         if not user.delete_token(l1, level=1):
             log.warning("Could not delete token: {}".format(l1))
