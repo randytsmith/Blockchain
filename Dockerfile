@@ -1,8 +1,6 @@
 FROM python:3.6-alpine
 
 WORKDIR /usr/src/app
-COPY ./scalamed/ .
-COPY ./requirements.txt .
 
 RUN apk update
 
@@ -12,8 +10,10 @@ RUN apk add build-base
 # For install cffi, a dependency of bcrypt:
 RUN apk add libffi-dev openssl-dev
 
+COPY ./requirements.txt .
 RUN pip install -r requirements.txt
 
+COPY ./scalamed/ .
 RUN ./manage makemigrations
 RUN ./manage migrate
 

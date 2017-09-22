@@ -27,7 +27,7 @@ def request_must_have(expected, required):
     if missing:
         messages.append("Fields were missing: {}".format(missing))
 
-    log.debug("Errors in request: {}".format(messages))
+    log.info("Errors in request: {}".format(messages))
     return False
 
 
@@ -35,7 +35,7 @@ def request_fields(fields):
     def decorator(functor):
         def caller(self, request, *args, **kwargs):
             if not request_must_have(request.data.keys(), fields):
-                return ResponseMessage.INVALID_CREDENTIALS
+                return ResponseMessage.INVALID_MESSAGE("Fields missing")
             else:
                 return functor(self, request, *args, **kwargs)
         return caller
