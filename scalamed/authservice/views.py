@@ -298,13 +298,12 @@ class ResetPasswordView(APIView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
-    @request_fields({'email', 'token'})
+    @request_fields({'email', 'token', 'password'})
     def post(self, request):
         """
         Peforms the password reset.
         Expecting:
-            GET: email, token
-            DATA: password
+            POST: email, token, password
         Returns: Success
         """
         # Get the user from the email
@@ -316,5 +315,7 @@ class ResetPasswordView(APIView):
         # Validate the token matches the user token
         if not user.validate_token(request.data['token']):
             return ResponseMessage.INVALID_CREDENTIALS
+
+        # password = request.data['password']
 
         return JsonResponse({'success': True}, status=201)
