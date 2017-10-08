@@ -252,7 +252,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         :todo: Throw exception if token invalid?
         """
 
-
         claims = self.__validate_and_get_claims(session_token, level)
 
         if not claims:
@@ -266,8 +265,14 @@ class User(AbstractBaseUser, PermissionsMixin):
             return False
 
 
-# TODO this table needs to be cleared out now and again.
+# TODO this table needs to have some process clear out the expired tokens.
+# Otherwise it will grow endlessly.
 class ValidTokens(models.Model):
+    """
+    This model represents the nonces of the valid tokens in use by users. This
+    helps to ensure that a nonce is unique, but also removes forging of a token,
+    an attacker would have to guess the nonce in the token, and then sign it.
+    """
     jti = models.CharField(
         blank=False,
         null=False,
@@ -277,7 +282,8 @@ class ValidTokens(models.Model):
 
     exp = models.DateTimeField(
         blank=False,
-        null=False)
+        null=False
+    )
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
