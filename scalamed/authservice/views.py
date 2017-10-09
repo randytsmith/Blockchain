@@ -42,18 +42,6 @@ def request_fields(fields):
     return decorator
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def user_list(request):
-    """List all users, or create a new user."""
-    if request.method == 'GET':
-        users = User.objects.all()
-        serializer = UserSerializer(users, many=True)
-        return JsonResponse(serializer.data, safe=False)
-
-    return ResponseMessage.NOT_FOUND
-
-
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(APIView):
 
