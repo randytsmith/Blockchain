@@ -141,6 +141,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         Generate a unique key for each users JWT, derived from the master
         key, user data, and user secret. Use of this key should only be for
         ephemeral information: e.g. token_level_0, or token_level_1
+
+        TODO We need to have an internal discussion about:
+         - How key rollover works?
+         - Cryptographic secureness of this schema?
         """
         assert(len(self.secret) == (KEY_SIZE_BITS // 8) * 2)
         assert(len(self.uuid) == 36)
