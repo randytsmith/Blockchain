@@ -1,13 +1,14 @@
 from authservice.serializers import UserSerializer
-from authservice.models import User
+from authservice.models import User, TokenType, TokenManager
 from authservice.responsemessage import ResponseMessage
+from datetime import timedelta
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 from rest_framework.views import APIView
-from scalamed.logging import log, logroute
+from scalamed.logging import log
 
 
 def request_must_have(expected, required):
@@ -70,10 +71,7 @@ class RegisterView(APIView):
             password=serializer.data['password'])
         log.info("User has been registered: {}".format(user))
         return JsonResponse(
-            {
-                'email': user.email,
-                'uuid': user.uuid
-            }, status=201)
+            {'email': user.email, 'uuid': user.uuid}, status=201)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -99,8 +97,8 @@ class LoginView(APIView):
         if user is None:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = user.generate_token(level=0)
-        l1 = user.generate_token(level=1)
+        l0 = TokenManager.generate(user, TokenType.LEVEL_ZERO)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ZERO)
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -133,14 +131,13 @@ class LogoutView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
-            return ResponseMessage.INVALID_CREDENTIALS
+        claims = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if claims:
+            TokenManager.delete(user, claims)
 
-        if not user.validate_token(l1, level=1):
-            return ResponseMessage.INVALID_CREDENTIALS
-
-        user.delete_token(l0, level=0)
-        user.delete_token(l1, level=1)
+        claims = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
+        if claims:
+            TokenManager.delete(user, claims)
 
         return JsonResponse({'success': True}, status=200)
 
@@ -172,10 +169,12 @@ class CheckView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
+        claims0 = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if not claims0:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, level=1):
+        claims1 = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
+        if not claims1:
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
@@ -187,15 +186,15 @@ class CheckView(APIView):
                 if user.role != User.Role.PHARMACIST:
                     return ResponseMessage.FORBIDDEN('User cannot fulfill')
 
-        if not user.delete_token(l1, level=1):
+        if not TokenManager.delete(user, l1, TokenType.LEVEL_ONE):
             log.warning("Could not delete token: {}".format(l1))
 
         # Refresh with the new token
-        new_l1 = user.generate_token(level=1)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
             'success': True,
-            'token_level_1': new_l1.decode('ascii'),
+            'token_level_1': l1.decode('ascii'),
         }, status=200)
 
 
@@ -229,23 +228,23 @@ class GetSecretView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
+        if not TokenManager.validate(user, l0, TokenType.LEVEL_ZERO):
             log.debug(
                 "Invalid token_level_0 for user={} was detected: {}"
                 .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, level=1):
+        if not TokenManager.validate(user, l0, TokenType.LEVEL_ZERO):
             log.debug(
                 "Invalid token_level_1 for user={} was detected: {}"
-                .format(user, l0))
+                .format(user, l1))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token(level=1)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
-            'token_level_1': new_l1.decode('ascii'),
+            'token_level_1': l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
 
@@ -271,10 +270,42 @@ class ForgotPasswordView(APIView):
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        token = user.generate_token()
+        token = TokenManager.generate(user, TokenType.RESET_PASSWORD)
         return JsonResponse({
             "token": token.decode('utf8')
         }, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ResetPasswordValidateView(APIView):
+
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    @request_fields({'email', 'token'})
+    def post(self, request):
+        """
+        Peforms the password reset.
+        Returns: Success
+        """
+        # Get the user from the email
+        try:
+            user = User.objects.get(email=request.data['email'])
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = request.data['token']
+
+        # Validate the token matches the user token
+        if not TokenManager.validate(user, token, TokenType.RESET_PASSWORD):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # TODO stuff
+
+        return JsonResponse({}, status=200)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -300,10 +331,13 @@ class ResetPasswordView(APIView):
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
+        token = request.data['token']
+
         # Validate the token matches the user token
-        if not user.validate_token(request.data['token']):
+        if not TokenManager.validate(user, token, TokenType.RESET_PASSWORD):
             return ResponseMessage.INVALID_CREDENTIALS
 
+        # TODO change pw
         # password = request.data['password']
 
-        return JsonResponse({'success': True}, status=201)
+        return JsonResponse({}, status=201)
