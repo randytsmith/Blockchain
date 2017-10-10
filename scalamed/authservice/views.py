@@ -1,7 +1,6 @@
 from authservice.serializers import UserSerializer
 from authservice.models import User, TokenType, TokenManager
 from authservice.responsemessage import ResponseMessage
-from datetime import timedelta
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
