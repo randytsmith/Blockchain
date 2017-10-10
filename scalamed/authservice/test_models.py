@@ -7,7 +7,7 @@ from unittest import mock
 
 class UserTestCase(TestCase):
     def setUp(self):
-        log.setLevel(10)
+        log.setLevel(100)
 
         self.user = User.objects.create_user(
             username=None,
@@ -28,7 +28,14 @@ class UserTestCase(TestCase):
         self.assertEqual(len(user.uuid), 36)
         self.assertEqual(user.role, User.Role.PATIENT)
 
-    def test_token_generate(self):
+    def test_counter(self):
+        user = self.user
+        self.assertEquals(user.counter(), 0)
+        self.assertEquals(user.counter(), 1)
+        self.assertEquals(user.counter(), 2)
+        self.assertEquals(user.counter(), 3)
+
+    def test_TokenManager_generate(self):
         """Test the generation and validation of tokens"""
         user = self.user
         for kind in list(TokenType):
@@ -36,7 +43,7 @@ class UserTestCase(TestCase):
             self.assertTrue(TokenManager.validate(user, token, kind))
 
     @mock.patch('authservice.models.TokenType.ttl')
-    def test_token_expiry(self, mock_TokenType):
+    def test_TokenManager_token_expires(self, mock_TokenType):
 
         def instantly_expire():
             return timedelta(seconds=-1)
@@ -48,14 +55,10 @@ class UserTestCase(TestCase):
         claims = TokenManager.validate(user, token, TokenType.LEVEL_ZERO)
         self.assertFalse(claims)
 
-    def test_counter(self):
-        user = self.user
-        self.assertEquals(user.counter(), 0)
-        self.assertEquals(user.counter(), 1)
-        self.assertEquals(user.counter(), 2)
-        self.assertEquals(user.counter(), 3)
+    def test_TokenManager_generate_weird_kind(self):
 
-    def test_token_generate_other(self):
+        with self.assertRaises(ValueError):
+            TokenManager.generate(self.user, TokenType(400))
 
-        user = User.objects.
-
+        with self.assertRaises(Exception):
+            TokenManager.generate(self.user, 400)

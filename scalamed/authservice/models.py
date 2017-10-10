@@ -1,6 +1,6 @@
 from authservice.managers import UserManager
 from binascii import hexlify, unhexlify
-from datetime import datetime, timedelta
+from datetime import timedelta
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.conf import settings
 from django.db import models
