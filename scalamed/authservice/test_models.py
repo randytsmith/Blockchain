@@ -40,6 +40,17 @@ class UserTestCase(TestCase):
         self.assertEquals(user.counter(), 2)
         self.assertEquals(user.counter(), 3)
 
+    def test_privatekey_basic(self):
+        self.assertEquals(self.alice.private_key(), self.alice.private_key())
+        self.assertNotEqual(self.alice.private_key(), self.bob.private_key())
+
+    def test_nonce_basic(self):
+        nonces = set()
+        for i in range(0, 1000):
+            nonce = self.bob.nonce()
+            self.assertFalse(nonce in nonces)
+            nonces.add(nonce)
+
     def test_TokenManager_generate(self):
         """Test the generation and validation of tokens"""
         user = self.bob
