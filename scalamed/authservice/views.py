@@ -1,5 +1,5 @@
 from authservice.serializers import UserSerializer
-from authservice.models import User
+from authservice.models import User, TokenType, TokenManager
 from authservice.responsemessage import ResponseMessage
 from django.contrib.auth import authenticate
 from django.http import JsonResponse
@@ -7,7 +7,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 from rest_framework.views import APIView
-from scalamed.logging import log, logroute
+from scalamed.logging import log
 
 
 def request_must_have(expected, required):
@@ -42,18 +42,6 @@ def request_fields(fields):
     return decorator
 
 
-@csrf_exempt
-@logroute(decoder='json')
-def user_list(request):
-    """List all users, or create a new user."""
-    if request.method == 'GET':
-        users = User.objects.all()
-        serializer = UserSerializer(users, many=True)
-        return JsonResponse(serializer.data, safe=False)
-
-    return ResponseMessage.NOT_FOUND
-
-
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(APIView):
 
@@ -82,10 +70,7 @@ class RegisterView(APIView):
             password=serializer.data['password'])
         log.info("User has been registered: {}".format(user))
         return JsonResponse(
-            {
-                'email': user.email,
-                'uuid': user.uuid
-            }, status=201)
+            {'email': user.email, 'uuid': user.uuid}, status=201)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -111,8 +96,8 @@ class LoginView(APIView):
         if user is None:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        l0 = user.generate_token(level=0)
-        l1 = user.generate_token(level=1)
+        l0 = TokenManager.generate(user, TokenType.LEVEL_ZERO)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -145,14 +130,13 @@ class LogoutView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
-            return ResponseMessage.INVALID_CREDENTIALS
+        claims = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if claims:
+            TokenManager.delete(user, claims)
 
-        if not user.validate_token(l1, level=1):
-            return ResponseMessage.INVALID_CREDENTIALS
-
-        user.delete_token(l0, level=0)
-        user.delete_token(l1, level=1)
+        claims = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
+        if claims:
+            TokenManager.delete(user, claims)
 
         return JsonResponse({'success': True}, status=200)
 
@@ -181,33 +165,39 @@ class CheckView(APIView):
         try:
             user = User.objects.get(uuid=uuid)
         except User.DoesNotExist:
+            log.debug("User with uuid={} does not exist.".format(uuid))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
+        claims0 = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if not claims0:
+            log.debug("LEVEL_ZERO is invalid.")
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, level=1):
+        claims1 = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
+        if not claims1:
+            log.debug("LEVEL_ONE is invalid.")
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
         if actiontype:
             if actiontype == 'prescription':
                 if user.role != User.Role.DOCTOR:
+                    log.debug("User is unable to prescribe.")
                     return ResponseMessage.FORBIDDEN('User cannot prescribe')
             elif actiontype == 'fulfil':
                 if user.role != User.Role.PHARMACIST:
+                    log.debug("User is unable to fulfill.")
                     return ResponseMessage.FORBIDDEN('User cannot fulfill')
 
-        if not user.delete_token(l1, level=1):
-            log.warning("Could not delete token: {}".format(l1))
+        TokenManager.delete(user, claims1)
 
         # Refresh with the new token
-        new_l1 = user.generate_token(level=1)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
             'success': True,
-            'token_level_1': new_l1.decode('ascii'),
+            'token_level_1': l1.decode('ascii'),
         }, status=200)
 
 
@@ -241,23 +231,23 @@ class GetSecretView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
-        if not user.validate_token(l0, level=0):
+        if not TokenManager.validate(user, l0, TokenType.LEVEL_ZERO):
             log.debug(
                 "Invalid token_level_0 for user={} was detected: {}"
                 .format(user, l0))
             return ResponseMessage.INVALID_CREDENTIALS
 
-        if not user.validate_token(l1, level=1):
+        if not TokenManager.validate(user, l0, TokenType.LEVEL_ZERO):
             log.debug(
                 "Invalid token_level_1 for user={} was detected: {}"
-                .format(user, l0))
+                .format(user, l1))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Refresh with the new token
-        new_l1 = user.generate_token(level=1)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
-            'token_level_1': new_l1.decode('ascii'),
+            'token_level_1': l1.decode('ascii'),
             'secret': user.secret,
         }, status=200)
 
@@ -274,24 +264,49 @@ class ForgotPasswordView(APIView):
     @request_fields({'email'})
     def post(self, request):
         """
-        Request a reset password link to be sent to the users email.
-        Expecting: email
-        Returns: success
+        Request a reset password link to be sent to the users email. This view
+        will return a token that can be given to the ResetPassword views for
+        resetting the user's password.
         """
         try:
             user = User.objects.get(email=request.data['email'])
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        token = user.generate_token()
-        return JsonResponse({
-            "token": token.decode('utf8')
-        }, status=200)
+        token = TokenManager.generate(user, TokenType.RESET_PASSWORD)
+        return JsonResponse({"token": token.decode('utf8')}, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ResetPasswordValidateView(APIView):
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    @request_fields({'email', 'token'})
+    def post(self, request):
+        """
+        Validates the token is of TokenType.RESET_PASSWORD
+        """
+        # Get the user from the email
+        try:
+            user = User.objects.get(email=request.data['email'])
+        except User.DoesNotExist:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        token = request.data['token']
+
+        # Validate the token matches the user token
+        if not TokenManager.validate(user, token, TokenType.RESET_PASSWORD):
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        return JsonResponse({}, status=200)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ResetPasswordView(APIView):
-
     parser_classes = (JSONParser, )
 
     @csrf_exempt
@@ -301,10 +316,8 @@ class ResetPasswordView(APIView):
     @request_fields({'email', 'token', 'password'})
     def post(self, request):
         """
-        Peforms the password reset.
-        Expecting:
-            POST: email, token, password
-        Returns: Success
+        Peforms the password reset for the user with user.email=email if the
+        token is a valid token attached to that user.
         """
         # Get the user from the email
         try:
@@ -312,10 +325,15 @@ class ResetPasswordView(APIView):
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
+        token = request.data['token']
+
         # Validate the token matches the user token
-        if not user.validate_token(request.data['token']):
+        claims = TokenManager.validate(user, token, TokenType.RESET_PASSWORD)
+        if not claims:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        # password = request.data['password']
-
-        return JsonResponse({'success': True}, status=201)
+        TokenManager.delete(user, claims)
+        log.info("User uuid={} has changed their password".format(user.uuid))
+        user.set_password(request.data['password'])
+        user.save()
+        return JsonResponse({}, status=201)
