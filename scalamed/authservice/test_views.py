@@ -3,16 +3,20 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from scalamed.logging import log
 
+DEBUG = False
+
 
 class ViewsTestCase(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        log.setLevel(100)
-        # print("")
+        if DEBUG:
+            print("")
+            log.setLevel(10)
+        else:
+            log.setLevel(100)
 
     def tearDown(self):
-        # print("")
         log.setLevel(30)
 
     def test_register(self):

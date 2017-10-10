@@ -97,7 +97,7 @@ class LoginView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         l0 = TokenManager.generate(user, TokenType.LEVEL_ZERO)
-        l1 = TokenManager.generate(user, TokenType.LEVEL_ZERO)
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
             'token_level_0': l0.decode('ascii'),
@@ -165,28 +165,32 @@ class CheckView(APIView):
         try:
             user = User.objects.get(uuid=uuid)
         except User.DoesNotExist:
+            log.debug("User with uuid={} does not exist.".format(uuid))
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Verify the tokens are valid.
         claims0 = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
         if not claims0:
+            log.debug("LEVEL_ZERO is invalid.")
             return ResponseMessage.INVALID_CREDENTIALS
 
         claims1 = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
         if not claims1:
+            log.debug("LEVEL_ONE is invalid.")
             return ResponseMessage.INVALID_CREDENTIALS
 
         # Finally check the action type
         if actiontype:
             if actiontype == 'prescription':
                 if user.role != User.Role.DOCTOR:
+                    log.debug("User is unable to prescribe.")
                     return ResponseMessage.FORBIDDEN('User cannot prescribe')
             elif actiontype == 'fulfil':
                 if user.role != User.Role.PHARMACIST:
+                    log.debug("User is unable to fulfill.")
                     return ResponseMessage.FORBIDDEN('User cannot fulfill')
 
-        if not TokenManager.delete(user, l1, TokenType.LEVEL_ONE):
-            log.warning("Could not delete token: {}".format(l1))
+        TokenManager.delete(user, claims1)
 
         # Refresh with the new token
         l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)

@@ -8,6 +8,7 @@ from django.utils import timezone
 from enum import Enum, unique
 from hashlib import sha256
 from jwt import PyJWT, InvalidTokenError
+from scalamed.logging import log
 from secrets import token_bytes
 from uuid import uuid4
 from scalamed.logging import log
@@ -91,6 +92,7 @@ class TokenManager():
         ValidTokens.objects.create(
             jti=claims['jti'], exp=claims['exp'], user=user)
 
+        log.info("Generated a {} for {}".format(kind, user.uuid))
         return jwt.encode(claims, user.private_key(), algorithm='HS256')
 
     @staticmethod
@@ -129,12 +131,15 @@ class TokenManager():
             return False
 
         if ('sub' not in claims) or (claims['sub'] != user.uuid):
+            log.debug("Missing SUB")
             return False
 
         if ('typ' not in claims) or (claims['typ'] is not int(kind.value)):
+            log.debug("Missing TYP or invalid TYP")
             return False
 
         if 'jti' not in claims:
+            log.debug("Missing JTI")
             return False
 
         # Is the jti in our database of valid jti?
@@ -170,18 +175,24 @@ class TokenManager():
         """
         assert(isinstance(user, User))
 
+        log.debug(claims)
+
         if 'jti' not in claims:
+            log.warning("Could not delete a token, missing JTI")
             return False
 
         try:
             entry = ValidTokens.objects.get(jti=claims['jti'], user=user)
         except ValidTokens.DoesNotExist:
+            log.error(
+                "Could not delete a token that was validated. It should not "
+                "have been validated as it doesn't exist in ValidTokens: "
+                "user.uuid={}, claims={}"
+                .format(user.uuid, claims))
             return False
-        else:
-            entry.delete()
-            return True
 
-        return False
+        entry.delete()
+        return True
 
 
 class User(AbstractBaseUser, PermissionsMixin):
