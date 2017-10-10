@@ -264,9 +264,9 @@ class ForgotPasswordView(APIView):
     @request_fields({'email'})
     def post(self, request):
         """
-        Request a reset password link to be sent to the users email.
-        Expecting: email
-        Returns: success
+        Request a reset password link to be sent to the users email. This view
+        will return a token that can be given to the ResetPassword views for
+        resetting the user's password.
         """
         try:
             user = User.objects.get(email=request.data['email'])
@@ -274,9 +274,7 @@ class ForgotPasswordView(APIView):
             return ResponseMessage.INVALID_CREDENTIALS
 
         token = TokenManager.generate(user, TokenType.RESET_PASSWORD)
-        return JsonResponse({
-            "token": token.decode('utf8')
-        }, status=200)
+        return JsonResponse({"token": token.decode('utf8')}, status=200)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
