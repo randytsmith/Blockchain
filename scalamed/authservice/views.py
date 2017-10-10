@@ -279,7 +279,6 @@ class ForgotPasswordView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ResetPasswordValidateView(APIView):
-
     parser_classes = (JSONParser, )
 
     @csrf_exempt
@@ -289,8 +288,7 @@ class ResetPasswordValidateView(APIView):
     @request_fields({'email', 'token'})
     def post(self, request):
         """
-        Peforms the password reset.
-        Returns: Success
+        Validates the token is of TokenType.RESET_PASSWORD
         """
         # Get the user from the email
         try:
@@ -304,14 +302,11 @@ class ResetPasswordValidateView(APIView):
         if not TokenManager.validate(user, token, TokenType.RESET_PASSWORD):
             return ResponseMessage.INVALID_CREDENTIALS
 
-        # TODO stuff
-
         return JsonResponse({}, status=200)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ResetPasswordView(APIView):
-
     parser_classes = (JSONParser, )
 
     @csrf_exempt
@@ -321,10 +316,8 @@ class ResetPasswordView(APIView):
     @request_fields({'email', 'token', 'password'})
     def post(self, request):
         """
-        Peforms the password reset.
-        Expecting:
-            POST: email, token, password
-        Returns: Success
+        Peforms the password reset for the user with user.email=email if the
+        token is a valid token attached to that user.
         """
         # Get the user from the email
         try:
@@ -335,10 +328,12 @@ class ResetPasswordView(APIView):
         token = request.data['token']
 
         # Validate the token matches the user token
-        if not TokenManager.validate(user, token, TokenType.RESET_PASSWORD):
+        claims = TokenManager.validate(user, token, TokenType.RESET_PASSWORD)
+        if not claims:
             return ResponseMessage.INVALID_CREDENTIALS
 
-        # TODO change pw
-        # password = request.data['password']
-
+        TokenManager.delete(user, claims)
+        log.info("User uuid={} has changed their password".format(user.uuid))
+        user.set_password(request.data['password'])
+        user.save()
         return JsonResponse({}, status=201)

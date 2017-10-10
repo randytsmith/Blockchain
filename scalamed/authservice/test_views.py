@@ -195,8 +195,39 @@ class ViewsTestCase(TestCase):
         user = User.objects.get(uuid=uuid)
         self.assertEqual(user.secret, user_details['secret'])
 
-    def test_get_password(self):
-        self.assertFalse("Not yet implemented")
-
     def test_reset_password(self):
-        self.assertFalse("Not yet implemented")
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register a user
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        # Run through the forgot password workflow
+        response = self.client.post('/auth/forgotpw', {
+            'email': user_details['email']
+        }, format='json')
+
+        self.assertEquals(response.status_code, 200)
+        token = response.json()['token']
+
+        response = self.client.post('/auth/resetpw/validate', {
+            'email': user_details['email'],
+            'token': token,
+        }, format='json')
+        self.assertEquals(response.status_code, 200)
+
+        response = self.client.post('/auth/resetpw', {
+            'email': user_details['email'],
+            'token': token,
+            'password': 'password123',
+        }, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        user_details['password'] = 'password123'
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEquals(response.status_code, 200)
