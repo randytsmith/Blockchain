@@ -155,7 +155,7 @@ LOGGING = {
 
         # Log to STDOUT
         'default': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'formatter': 'standard',
             'class': 'logging.StreamHandler',
             'filters': ['main_filter']

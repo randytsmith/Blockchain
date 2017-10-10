@@ -1,12 +1,13 @@
-from authservice.models import User
+from authservice.models import User, TokenManager, TokenType
 from datetime import timedelta
 from django.test import TestCase
 from scalamed.logging import log
+from unittest import mock
 
 
 class UserTestCase(TestCase):
     def setUp(self):
-        log.setLevel(100)
+        log.setLevel(10)
 
     def tearDown(self):
         log.setLevel(30)
@@ -47,15 +48,23 @@ class UserTestCase(TestCase):
         token = user.generate_token(level=1)
         self.assertTrue(user.validate_token(token, level=1))
 
-    def test_token_expiry(self):
+    # TODO patch kind.ttl()
+    @mock.patch('authservice.models.TokenType.ttl')
+    def test_token_expiry(self, mock_TokenType):
+
+        def instantly_expire():
+            return timedelta(seconds=-1)
+
+        mock_TokenType.side_effect = instantly_expire
 
         user = User.objects.create_user(
             username=None,
             email="bob@example.com",
             password="password123")
 
-        token = user.generate_token(level=0, exp=timedelta(seconds=-1))
-        self.assertFalse(user.validate_token(token, level=0))
+        token = TokenManager.generate(user, TokenType.LEVEL_ZERO)
+        claims = TokenManager.validate(user, token, TokenType.LEVEL_ZERO)
+        self.assertFalse(claims)
 
     def test_token_subject(self):
         pass

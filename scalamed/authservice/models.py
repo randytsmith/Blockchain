@@ -1,6 +1,6 @@
 from authservice.managers import UserManager
 from binascii import hexlify, unhexlify
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.conf import settings
 from django.db import models
@@ -91,7 +91,7 @@ class TokenManager():
         ValidTokens.objects.create(
             jti=claims['jti'], exp=claims['exp'], user=user)
 
-        return jwt.encode(claims, user._userkey(), algorithm='HS256')
+        return jwt.encode(claims, user.private_key(), algorithm='HS256')
 
     @staticmethod
     def validate(user, encoded_token, kind):
@@ -128,7 +128,7 @@ class TokenManager():
             log.warning(str(e))
             return False
 
-        if ('sub' not in claims) or (claims['sub'] is not user.uuid):
+        if ('sub' not in claims) or (claims['sub'] != user.uuid):
             return False
 
         if ('typ' not in claims) or (claims['typ'] is not int(kind.value)):
@@ -143,7 +143,8 @@ class TokenManager():
         except ValidTokens.DoesNotExist:
             return False
         else:
-            if entry.exp != claims['exp']:
+            seconds = int(entry.exp.timestamp())
+            if seconds != claims['exp']:
                 return False
 
         return claims
