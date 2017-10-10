@@ -62,3 +62,10 @@ class UserTestCase(TestCase):
 
         with self.assertRaises(Exception):
             TokenManager.generate(self.user, 400)
+
+    def test_TokenManager_deletes(self):
+        token = TokenManager.generate(self.user, TokenType.LEVEL_ZERO)
+        claims = TokenManager.validate(self.user, token, TokenType.LEVEL_ZERO)
+        self.assertTrue(TokenManager.delete(self.user, claims))
+        self.assertFalse(
+            TokenManager.validate(self.user, token, TokenType.LEVEL_ZERO))
