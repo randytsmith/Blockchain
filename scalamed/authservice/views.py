@@ -138,7 +138,7 @@ class LogoutView(APIView):
         if claims:
             TokenManager.delete(user, claims)
 
-        return JsonResponse({'success': True}, status=200)
+        return JsonResponse({}, status=200)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
