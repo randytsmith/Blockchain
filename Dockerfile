@@ -14,6 +14,7 @@ COPY ./requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY ./scalamed/ .
+RUN touch db.sqlite3
 RUN ./manage makemigrations
 RUN ./manage migrate
 
