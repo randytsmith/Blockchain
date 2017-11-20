@@ -122,6 +122,39 @@ class ViewsTestCase(TestCase):
             fail_response = self.client.post('/auth/check', body, format='json')
             self.assertEqual(fail_response.status_code, 400)
 
+    def test_check_normal(self):
+
+        body = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register and log in
+        response = self.client.put('/auth/register', body, format='json')
+        response = self.client.post('/auth/login', body, format='json')
+
+        # Check auth
+        body = response.json()
+
+        auth = {
+            'token_level_0': body['token_level_0'],
+            'uuid': body['uuid'],
+        }
+
+        response = self.client.post('/auth/checkzero', auth, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        # Check should just be 200
+        self.assertNotIn('token_level_1', response.json())
+        self.assertNotIn('token_level_0', response.json())
+        self.assertNotIn('uuid', response.json())
+
+        response = self.client.post('/auth/logout', body, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post('/auth/checkzero', auth, format='json')
+        self.assertEqual(response.status_code, 400)
+
     def test_logout(self):
 
         body = {
