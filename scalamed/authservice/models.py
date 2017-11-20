@@ -54,7 +54,6 @@ class TokenType(Enum):
 
 
 class TokenManager():
-
     @staticmethod
     def generate(user, kind):
         """

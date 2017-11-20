@@ -142,6 +142,41 @@ class LogoutView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+class CheckZeroView(APIView):
+
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    @request_fields({'token_level_0', 'uuid'})
+    def post(self, request):
+        """
+        Checks if the given token is valid, expecting their uuid, token_level_1,
+        token_level_0.  Optional: Checks if the given user is permitted to
+        perform the action.  We return them a fresh token_level_1 on success.
+        """
+        l0 = request.data['token_level_0']
+        uuid = request.data['uuid']
+
+        # Verify the user id
+        try:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            log.debug("User with uuid={} does not exist.".format(uuid))
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Verify the tokens are valid.
+        claims0 = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if not claims0:
+            log.debug("LEVEL_ZERO is invalid.")
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        return JsonResponse({}, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class CheckView(APIView):
 
     parser_classes = (JSONParser, )
@@ -196,7 +231,6 @@ class CheckView(APIView):
         l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
 
         return JsonResponse({
-            'success': True,
             'token_level_1': l1.decode('ascii'),
         }, status=200)
 
