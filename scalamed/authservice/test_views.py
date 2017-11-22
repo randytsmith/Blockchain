@@ -264,3 +264,135 @@ class ViewsTestCase(TestCase):
 
         response = self.client.post('/auth/login', user_details, format='json')
         self.assertEquals(response.status_code, 200)
+
+    def test_change_password(self):
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register a user
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        j = response.json()
+
+        l0 = j['token_level_0']
+        l1 = j['token_level_1']
+        uuid = j['uuid']
+
+        new_password = 'GkEZ0GxhQXVPG4glmhR7DM28EkKGX7Ry'
+
+        body = {
+            'uuid': uuid,
+            'token_level_0': l0,
+            'token_level_1': l1,
+            'password': user_details['password'],
+            'new_password': new_password
+        }
+        response = self.client.put('/auth/changepassword', body, format='json')
+        self.assertEqual(response.status_code, 201)
+
+    def test_change_password_incorrect_current_password(self):
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register a user
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        j = response.json()
+
+        l0 = j['token_level_0']
+        l1 = j['token_level_1']
+        uuid = j['uuid']
+
+        new_password = 'GkEZ0GxhQXVPG4glmhR7DM28EkKGX7Ry'
+
+        body = {
+            'uuid': uuid,
+            'token_level_0': l0,
+            'token_level_1': l1,
+            'password': user_details['password'] + 'a',
+            'new_password': new_password
+        }
+        response = self.client.put('/auth/changepassword', body, format='json')
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_change_password_bad_auth(self):
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register a user
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        j = response.json()
+
+        l0 = j['token_level_0']
+        uuid = j['uuid']
+
+        new_password = 'GkEZ0GxhQXVPG4glmhR7DM28EkKGX7Ry'
+
+        body = {
+            'uuid': uuid,
+            'token_level_0': l0,
+            'token_level_1': l0,
+            'password': user_details['password'],
+            'new_password': new_password
+        }
+        response = self.client.put('/auth/changepassword', body, format='json')
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_change_password_wrong_uuid(self):
+        user_details = {
+            'email': 'jim.raynor@terran.scu',
+            'password': 'wXqkw5UCLOqxrNQrl2Xe2sgNR4JtOFjR'
+        }
+
+        # Register a user
+        response = self.client.put(
+            '/auth/register', user_details, format='json')
+        self.assertEquals(response.status_code, 201)
+
+        response = self.client.post('/auth/login', user_details, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        j = response.json()
+
+        l0 = j['token_level_0']
+        l1 = j['token_level_1']
+        uuid = j['uuid']
+
+        new_password = 'GkEZ0GxhQXVPG4glmhR7DM28EkKGX7Ry'
+
+        uuid = ('8' if uuid[0] != '8' else '7') + uuid[1:]
+
+        body = {
+            'uuid': uuid,
+            'token_level_0': l0,
+            'token_level_1': l1,
+            'password': user_details['password'],
+            'new_password': new_password
+        }
+        response = self.client.put('/auth/changepassword', body, format='json')
+
+        self.assertEqual(response.status_code, 400)

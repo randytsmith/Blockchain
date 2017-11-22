@@ -371,3 +371,63 @@ class ResetPasswordView(APIView):
         user.set_password(request.data['password'])
         user.save()
         return JsonResponse({}, status=201)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ChangePasswordView(APIView):
+    parser_classes = (JSONParser, )
+
+    @csrf_exempt
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    @request_fields({
+        'uuid', 'token_level_0', 'token_level_1', 'password', 'new_password'
+    })
+    def put(self, request):
+        """
+        Peforms the password reset for the user with user.email=email if the
+        token is a valid token attached to that user.
+        """
+        uuid = request.data['uuid']
+
+        # Get the user from the email
+        try:
+            user = User.objects.get(uuid=uuid)
+        except User.DoesNotExist:
+            log.debug("User does not exist: uuid={}".format(uuid))
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        email = user.email
+        password = request.data['password']
+
+        # Check password
+        user = authenticate(username=email, password=password)
+        if user is None:
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        # Check tokens
+        l0 = request.data['token_level_0']
+        l1 = request.data['token_level_1']
+
+        claims0 = TokenManager.validate(user, l0, TokenType.LEVEL_ZERO)
+        if not claims0:
+            log.debug("LEVEL_ZERO is invalid.")
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        claims1 = TokenManager.validate(user, l1, TokenType.LEVEL_ONE)
+        if not claims1:
+            log.debug("LEVEL_ONE is invalid.")
+            return ResponseMessage.INVALID_CREDENTIALS
+
+        TokenManager.delete(user, claims1)
+
+        l1 = TokenManager.generate(user, TokenType.LEVEL_ONE)
+
+        log.info("User uuid={} has changed their password".format(user.uuid))
+        user.set_password(request.data['new_password'])
+        user.save()
+
+        return JsonResponse({
+            'token_level_1': l1.decode('ascii'),
+        }, status=201)
