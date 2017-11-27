@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'authservice',
+    'import_export',
     'rest_framework',
 ]
 
