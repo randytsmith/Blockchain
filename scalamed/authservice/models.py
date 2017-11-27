@@ -291,6 +291,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = 'user'
         verbose_name_plural = 'users'
 
+    def get_short_name(self):
+        return self.email
+
     def __str__(self):
         return "User(uuid={}, email={}, role={})".format(
             self.uuid, self.email, self.role)

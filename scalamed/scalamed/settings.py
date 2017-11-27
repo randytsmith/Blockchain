@@ -30,14 +30,16 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'suit',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'authservice',
     'rest_framework',
-    'authservice'
 ]
 
 MIDDLEWARE = [
@@ -130,6 +132,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 AUTH_USER_MODEL = 'authservice.User'
+
+SUIT_CONFIG = {
+    'ADMIN_NAME': 'ScalaMed Authentication Service',
+}
 
 _megabytes = 1024 * 1024
 
