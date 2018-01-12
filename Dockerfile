@@ -19,5 +19,4 @@ RUN ./manage makemigrations
 RUN ./manage migrate
 
 ENTRYPOINT ["python3"]
-CMD ["/usr/src/app/manage", "runserver", "0.0.0.0:8000"]
-
+CMD ["/usr/src/app/manage", "runserver", "0.0.0.0:80"]
