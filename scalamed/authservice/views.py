@@ -55,10 +55,11 @@ class RegisterView(APIView):
     def put(self, request):
         """Register a new user into the system."""
 
+        request.data['email'] = request.data['email'].lower()
         serializer = UserSerializer(data=request.data)
 
         if not serializer.is_valid():
-            log.warning("{} => {}".format(
+            log.warning("{} => {}{}".format(
                 "User data was deemed invalid by UserSerializer",
                 str(serializer.errors),
                 request.data))
@@ -66,7 +67,7 @@ class RegisterView(APIView):
 
         user = User.objects.create_user(
             username=None,
-            email=serializer.data['email'],
+            email=serializer.data['email'].lower(),
             password=serializer.data['password'])
         log.info("User has been registered: {}".format(user))
         return JsonResponse(
@@ -89,7 +90,7 @@ class LoginView(APIView):
         credentials.  We return them a fresh token_level_0, token_level_1, and
         the UUID of the user.
         """
-        email = request.data['email']
+        email = request.data['email'].lower()
         password = request.data['password']
         user = authenticate(username=email, password=password)
 
@@ -303,7 +304,7 @@ class ForgotPasswordView(APIView):
         resetting the user's password.
         """
         try:
-            user = User.objects.get(email=request.data['email'])
+            user = User.objects.get(email=request.data['email'].lower())
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
@@ -326,7 +327,7 @@ class ResetPasswordValidateView(APIView):
         """
         # Get the user from the email
         try:
-            user = User.objects.get(email=request.data['email'])
+            user = User.objects.get(email=request.data['email'].lower())
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
@@ -355,7 +356,7 @@ class ResetPasswordView(APIView):
         """
         # Get the user from the email
         try:
-            user = User.objects.get(email=request.data['email'])
+            user = User.objects.get(email=request.data['email'].lower())
         except User.DoesNotExist:
             return ResponseMessage.INVALID_CREDENTIALS
 
@@ -398,7 +399,7 @@ class ChangePasswordView(APIView):
             log.debug("User does not exist: uuid={}".format(uuid))
             return ResponseMessage.INVALID_CREDENTIALS
 
-        email = user.email
+        email = user.email.lower()
         password = request.data['password']
 
         # Check password
