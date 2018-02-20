@@ -48,7 +48,7 @@ class TokenType(Enum):
         """
         return {
             self.LEVEL_ZERO: timedelta(hours=24),
-            self.LEVEL_ONE: timedelta(minutes=30),
+            self.LEVEL_ONE: timedelta(hours=2),
             self.RESET_PASSWORD: timedelta(hours=48),
         }[self]
 
