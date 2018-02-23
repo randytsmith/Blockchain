@@ -47,8 +47,8 @@ class TokenType(Enum):
         Returns the time-to-live for a token.
         """
         return {
-            self.LEVEL_ZERO: timedelta(hours=24),
-            self.LEVEL_ONE: timedelta(hours=2),
+            self.LEVEL_ZERO: timedelta(hours=int(settings.T0_EXP)),
+            self.LEVEL_ONE: timedelta(hours=int(settings.T1_EXP)),
             self.RESET_PASSWORD: timedelta(hours=48),
         }[self]
 

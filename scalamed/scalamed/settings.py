@@ -21,6 +21,31 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'sth2xr)1fq=2@rvonjz05079jlu=3s2z-d2l8o052dbz#(ur40'
 
+# Get tokens from the environment variables
+
+T1_EXP = os.environ.get('T1EXP')
+T0_EXP = os.environ.get('T0EXP')
+
+try:
+    if not T1_EXP:
+        print("No t1 expiry, using default")
+        T1_EXP = 1
+    else:
+        T1_EXP = int(T1_EXP)
+except ValueError:
+    print("Invalid T1 Expiry")
+    T1_EXP = 1
+
+try:
+    if not T0_EXP:
+        print("No t0 expiry, using default")
+        T0_EXP = 24
+    else:
+        T0_EXP = int(T0_EXP)
+except ValueError:
+    print("Invalid T0 Expiry")
+    T0_EXP = 1
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
